@@ -9,4 +9,11 @@ end type
 type poop
 	dim a
 	dim b
+	dim integer c
 end type
+
+dim a
+dim string b
+
+function f()
+end function
