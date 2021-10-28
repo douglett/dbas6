@@ -131,6 +131,20 @@ struct InputFile {
 		return 0;
 	}
 
+	int loadstring(const string& program) {
+		// reset
+		lines = tokens = {};
+		lno = pos = 0;
+		// load
+		stringstream ss(program);
+		string s;
+		while (getline(ss, s))
+			lines.push_back(s);
+		printf("loaded program string.\n");
+		tokenizeline();
+		return 0;
+	}
+
 	int tokenizeline() {
 		// reset & check
 		tokens = {};

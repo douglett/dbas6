@@ -1,6 +1,12 @@
-print "hello world"
 type test
 	dim a
-	dim string b
 	# a comment
+	dim string b
+end type
+
+
+# comment 2
+type poop
+	dim a
+	dim b
 end type

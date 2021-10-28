@@ -4,21 +4,24 @@
 using namespace std;
 
 
-int main() {
-	printf("hello world\n");
-
+void inputtest() {
 	InputFile inp;
-	inp.load("scripts/test.bas");
+	inp.loadstring("print \"hello world\"");
 
 	int r  = inp.peek("'print literal endl");
 	int r2 = inp.peek("'print literal");
 	int r3 = inp.peek("'print endl");
 	printf("results:  %d  %d  %d \n", r, r2, r3);
 	printf("---\n");
+}
 
+
+int main() {
+	printf("hello world\n");
+	// inputtest();
 
 	Parser p;
 	p.load("scripts/test.bas");
-	p.nextline();
-	p.p_type();
+	p.p_program();
+	p.prog.show();
 }
