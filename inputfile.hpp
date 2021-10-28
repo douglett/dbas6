@@ -17,8 +17,9 @@ using namespace std;
 // ----------------------------------------
 
 struct InputPattern {
-	enum PATTERN_TYPE { PT_NONE=0, PT_LITERAL, PT_RULE };
+	enum PATTERN_TYPE { PT_NONE=0, PT_WORD, PT_RULE };
 	struct SubPattern { PATTERN_TYPE ptype = PT_NONE; int record = false; string pattern; };
+	typedef  vector<string>  Results;
 	string pattern;
 	vector<SubPattern> pattlist;
 
@@ -28,7 +29,7 @@ struct InputPattern {
 		for (auto patt : vs) {
 			SubPattern p;
 			if      (patt.substr(0, 1) == "@")  patt = patt.substr(1), p.record = true;
-			if      (patt.substr(0, 1) == "'")  patt = patt.substr(1), p.ptype = PT_LITERAL;
+			if      (patt.substr(0, 1) == "'")  patt = patt.substr(1), p.ptype = PT_WORD;
 			else    p.ptype = PT_RULE;
 			p.pattern = patt;
 			assert(p.ptype != PT_NONE && p.pattern.length() > 0);
@@ -36,30 +37,48 @@ struct InputPattern {
 		}
 	}
 
-	int match(const vector<string>& tokens, int start, vector<string>& results) {
+	int match(const vector<string>& tokens, int start, Results& results) {
 		results = {};
-		int pos = start;
+		int pos = start, ismatch = 0;
+		// loop through each sub-pattern and match
 		for (auto& p : pattlist) {
 			switch (p.ptype) {
 			case PT_NONE:
 				assert("Pattern::match > matching on blank pattern" == NULL);
-			case PT_LITERAL:
-				if (pos >= tokens.size() || tokens[pos] != p.pattern)  return 0;
-				results.push_back(tokens[pos]);
+			case PT_WORD:
+				if (pos >= tokens.size() || tokens[pos] != p.pattern)  return 0;  // cancel (match nothing)
+				if (p.record)  results.push_back( tokens[pos] );
 				break;
 			case PT_RULE:
-				if      (p.pattern == "eol")         return pos >= tokens.size();
-				else if (p.pattern == "endl")        return pos >= tokens.size() || tokens[pos][0] == '#';
-				else if (pos >= tokens.size())       return 0;
-				else if (p.pattern == "comment")     return tokens[pos][0] == '#';
-				else if (p.pattern == "identifier")  return is_identifier(tokens[pos]);
-				else if (p.pattern == "integer")     return is_integer(tokens[pos]);
-				else if (p.pattern == "literal")     return tokens[pos].size() >= 2 && tokens[pos][0] == '"' && tokens[pos].back() == '"';
-				else    return assert("Pattern::match > unknown pattern" == NULL), 0;
+				// built in rules
+				ismatch = 0;
+				if      (p.pattern == "eol")         ismatch = pos >= tokens.size();
+				else if (p.pattern == "endl")        ismatch = pos >= tokens.size() || tokens[pos][0] == '#';
+				else if (pos >= tokens.size())       ismatch = 0;
+				else if (p.pattern == "comment")     ismatch = tokens[pos][0] == '#';
+				else if (p.pattern == "identifier")  ismatch = is_identifier(tokens[pos]);
+				else if (p.pattern == "integer")     ismatch = is_integer(tokens[pos]);
+				else if (p.pattern == "literal")     ismatch = tokens[pos].size() >= 2 && tokens[pos][0] == '"' && tokens[pos].back() == '"';
+				else    assert("Pattern::match > unknown pattern" == NULL);
+				if (!ismatch)  return 0;  // cancel (match nothing)
+				if (p.record)  results.push_back( pos < tokens.size() ? tokens[pos] : "<EOL>" );
+				break;
 			}
-			pos++;
+			pos++;  // next
 		}
-		return results.size();
+		// return total number of tokens eaten
+		return pattlist.size();
+	}
+
+	int matchrule(const vector<string>& tokens, int pos, const SubPattern& p) {
+		if      (p.pattern == "eol")         return pos >= tokens.size();
+		else if (p.pattern == "endl")        return pos >= tokens.size() || tokens[pos][0] == '#';
+		else if (pos >= tokens.size())       return 0;
+		else if (p.pattern == "comment")     return tokens[pos][0] == '#';
+		else if (p.pattern == "identifier")  return is_identifier(tokens[pos]);
+		else if (p.pattern == "integer")     return is_integer(tokens[pos]);
+		else if (p.pattern == "literal")     return tokens[pos].size() >= 2 && tokens[pos][0] == '"' && tokens[pos].back() == '"';
+		else    return assert("Pattern::match > unknown pattern" == NULL), 0;
 	}
 
 	static int is_identifier(const string& s) {
@@ -91,7 +110,9 @@ struct InputPattern {
 // ----------------------------------------
 
 struct InputFile {
-	vector<string> lines, tokens, tempresults;
+	// typedef  InputPattern::Results  Results;
+	vector<string> lines, tokens;
+	InputPattern::Results presults;
 	int lno = 0, pos = 0;
 
 	int load(const string& fname) {
@@ -157,21 +178,21 @@ struct InputFile {
 
 	// line pattern matching
 
-	int peek    (const string& pattern) { return peek    (pattern, tempresults); }
-	int expect  (const string& pattern) { return expect  (pattern, tempresults); }
-	int require (const string& pattern) { return require (pattern, tempresults); }
+	int peek    (const string& pattern) { return peek    (pattern, presults); }
+	int expect  (const string& pattern) { return expect  (pattern, presults); }
+	int require (const string& pattern) { return require (pattern, presults); }
 
-	int peek(const string& pattern, vector<string>& results) {
+	int peek(const string& pattern, InputPattern::Results& results) {
 		InputPattern pt(pattern);
 		return pt.match(tokens, pos, results);
 	}
-	int expect(const string& pattern, vector<string>& results) {
+	int expect(const string& pattern, InputPattern::Results& results) {
 		int len = peek(pattern, results);
 		return pos += len, len;
 	}
-	int require(const string& pattern, vector<string>& results) {
+	int require(const string& pattern, InputPattern::Results& results) {
 		int len = peek(pattern, results);
-		assert(len > 0);  // TODO: throw some error here
+		assert(len > 0 || "Required pattern not found" == NULL);  // TODO: throw some error here
 		return pos += len, len;
 	}
 };
