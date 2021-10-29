@@ -91,6 +91,7 @@ struct Parser : InputFile {
 			else if (scope == "local") {
 				functions.at(funcname).locals[name] = { name, type };
 			}
+			if (type != "int")  error2("TODO: non-int types");
 		Node& nn = p.pushlist();
 		nn.pushtokens({ "dim", name, type });
 		nextline();
@@ -150,16 +151,79 @@ struct Parser : InputFile {
 
 	void p_print(Node& p) {
 		require("'print");
-		auto& nn = p.pushlist();
-			nn.pushtoken("print");
+		auto& l = p.pushlist();
+			l.pushtoken("print");
 		while (!eol())
 			if      (expect("endl")) ;
-			else if (expect("',"))  nn.push(Node::Literal(" "));
-			else if (expect("';"))  nn.push(Node::Literal("\t"));
-			else if (expect("@literal"))  nn.push(Node::Literal( presults.at(0) ));
-			else    error();
-		// nn.push(Node::Literal("\n"));
+			else if (expect("',"))  l.push(Node::Literal(" "));
+			else if (expect("';"))  l.push(Node::Literal("\t"));
+			else if (expect("@literal"))  l.push(Node::Literal( presults.at(0) ));
+			else {
+				// auto type = p_varpath(l);
+				auto type = p_expr(l);
+				if (type == "int" || type == "string") {
+					// TODO: do I need this?
+					auto n = l.pop();
+					auto& ll = l.pushlist();
+					if   (type == "int")  ll.pushtoken("int_to_string");
+					else ll.pushtoken("ptr_to_string");
+					ll.push(n);
+				}
+				else    error();
+			}
+		// l.push(Node::Literal("\n"));
 		nextline();
+	}
+	
+	string p_expr(Node& p) {
+		return p_expr_add(p);
+	}
+	
+	string p_expr_add(Node& p) {
+		auto type1 = p_atom(p);
+		if (expect("'+")) {
+			if (type1 != "int")  error();
+			auto  type2 = p_expr_add(p);
+			if (type2 != type1)  error();
+			auto  rhs   = p.pop();
+			auto  lhs   = p.pop();
+			auto& l     = p.pushlist();
+				l.pushtoken("add");
+				l.push(lhs);
+				l.push(rhs);
+		}
+		return type1;
+	}
+	
+	string p_atom(Node& p) {
+		if      (peek("identifier"))  return p_varpath(p);
+		else if (expect("@integer")) {
+			return p.pushtoken(presults.at(0)), "int";
+		}
+		else    return error(), "nil";
+	}
+
+	string p_varpath(Node& p) {
+		require("@identifier");
+		string name = presults.at(0);
+		auto& l = p.pushlist();
+			// l.pushtoken("varpath");
+		if (funcname.length() && functions[funcname].args.count(name)) {
+			auto& d = functions[funcname].args[name];
+			l.pushtokens({ "get_local", d.name, d.type });
+			return d.type;
+		}
+		if (funcname.length() && functions[funcname].locals.count(name)) {
+			auto& d = functions[funcname].locals[name];
+			l.pushtokens({ "get_local", d.name, d.type });
+			return d.type;
+		}
+		if (globals.count(name)) {
+			auto&d = globals[name];
+			l.pushtokens({ "get_global", d.name, d.type });
+			return d.type;
+		}
+		return error(), "nil";
 	}
 
 
@@ -177,6 +241,12 @@ struct Parser : InputFile {
 	// helpers
 	int error() {
 		throw DBError(lno);
+	}
+	int error2(const string& msg) {
+		// Temporary WIP parser errors
+		DBError d(lno);
+		d.error_string += " :: " + msg;
+		throw d;
 	}
 	int typecheck(const string& type) {
 		if (type != "int" && type != "string" && types.count(type) == 0)  error();

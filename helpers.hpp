@@ -74,7 +74,8 @@ struct Node {
 		static NODE_TYPE last = NT_NIL;
 		// spacing
 		string indstr(ind*2, ' ');
-		if      (last == NT_LIST || type == NT_LIST)  printf("\n%s", indstr.c_str());
+		if      (ind == 0) ;  // first (special case)
+		else if (last == NT_LIST || type == NT_LIST)  printf("\n%s", indstr.c_str());
 		else if (last != NT_NIL)  printf(" ");
 		// show
 		switch (type) {
@@ -90,5 +91,6 @@ struct Node {
 
 		}
 		last = type;
+		if (ind == 0)  printf("\n");  // last (special case)
 	}
 };
