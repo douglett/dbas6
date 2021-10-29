@@ -23,5 +23,7 @@ int main() {
 	Parser p;
 	p.load("scripts/test.bas");
 	p.p_program();
+	// printf("---\n");
 	p.prog.show();
+	// printf("---\n");
 }

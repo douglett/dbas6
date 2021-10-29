@@ -11,7 +11,7 @@ using namespace std;
 struct Prog {
 	struct Dim  { string name, type; };
 	struct Type { string name; map<string, Dim> members; };
-	struct Func { string name; map<string, Dim> args; };
+	struct Func { string name; map<string, Dim> args, locals; };
 };
 
 const vector<string> BASIC_KEYWORDS = {
@@ -24,8 +24,9 @@ const vector<string> BASIC_KEYWORDS = {
 struct Parser : InputFile {
 	Node prog;
 	map<string, Prog::Type> types;
-	map<string, Prog::Dim>  globals, locals;
+	map<string, Prog::Dim>  globals;
 	map<string, Prog::Func> functions;
+	string funcname;
 
 
 	void p_program() {
@@ -82,9 +83,14 @@ struct Parser : InputFile {
 		else if (require("'dim @identifier endl"))  name = presults.at(0), type = "int";
 		if (type == "integer")  type = "int";
 			typecheck(type);
-			namecollision(name, scope);
-			if      (scope == "global")  globals[name] = { name, type };
-			else if (scope == "local" )  locals [name] = { name, type };
+			namecollision(name);
+			if (scope == "global") {
+				if (globals.count(name))  error();  // additional check on global namespace
+				globals[name] = { name, type };
+			}
+			else if (scope == "local") {
+				functions.at(funcname).locals[name] = { name, type };
+			}
 		Node& nn = p.pushlist();
 		nn.pushtokens({ "dim", name, type });
 		nextline();
@@ -94,9 +100,10 @@ struct Parser : InputFile {
 		require("'function @identifier '(");
 		string fname = presults.at(0);
 			namecollision(fname);
-			functions[fname] = { fname };
+			funcname = fname;
+			functions[funcname] = { funcname };
 		auto& nn = p.pushlist();
-			nn.pushtokens({ "function", fname });
+			nn.pushtokens({ "function", funcname });
 		// arguments
 		auto& args = nn.pushlist();
 			args.pushtoken("args");
@@ -106,8 +113,8 @@ struct Parser : InputFile {
 				name = presults.at(1), type = presults.at(0);
 				typecheck(type);
 				namecollision(name);
-				if (functions[fname].args.count(name))  error();  // additional name collision
-				functions[fname].args[name] = locals[name] = { name, type };  // save argument
+				if (functions[funcname].args.count(name))  error();  // additional name collision
+				functions[funcname].args[name] = { name, type };  // save argument
 				args.pushlist().pushtokens({ "dim", name, type });
 			if (peek("')"))  break;
 			require("',");
@@ -126,7 +133,8 @@ struct Parser : InputFile {
 		// end function
 		require("'end 'function endl");
 		nextline();
-		locals = {}; // reset local dims
+		// locals = {}; // reset local / argument dims
+		funcname = "";
 	}
 
 	void p_block(Node& p) {
@@ -174,15 +182,16 @@ struct Parser : InputFile {
 		if (type != "int" && type != "string" && types.count(type) == 0)  error();
 		return 0;
 	}
-	int namecollision(const string& name, const string& flag="") {
+	int namecollision(const string& name) {
 		// TODO: be careful with this function, its a bit WIP
 		for (auto& k : BASIC_KEYWORDS)
 			if (name == k)  error();
 		if (types.count(name))      error();
 		if (functions.count(name))  error();
-		if (locals.count(name))     error();
+		if (funcname != "" && functions.at(funcname).args.count(name))    error();
+		if (funcname != "" && functions.at(funcname).locals.count(name))  error();
 		// note: allow name shadowing here
-		if (flag == "global" && globals.count(name))  error();
+		// if (flag == "global" && globals.count(name))  error();
 		return 0;
 	}
 };

@@ -58,7 +58,7 @@ struct InputPattern {
 				else if (p.pattern == "comment")     ismatch = tokens[pos][0] == '#';
 				else if (p.pattern == "identifier")  ismatch = is_identifier(tokens[pos]);
 				else if (p.pattern == "integer")     ismatch = is_integer(tokens[pos]);
-				else if (p.pattern == "literal")     ismatch = tokens[pos].size() >= 2 && tokens[pos][0] == '"' && tokens[pos].back() == '"';
+				else if (p.pattern == "literal")     ismatch = is_strliteral(tokens[pos]);
 				else    assert("Pattern::match > unknown pattern" == NULL);
 				if (!ismatch)  return 0;  // cancel (match nothing)
 				if (p.record)  results.push_back( pos < tokens.size() ? tokens[pos] : "<EOL>" );
@@ -93,6 +93,9 @@ struct InputPattern {
 		for (int i = 0; i < s.length(); i++)
 			if (!isdigit(s[i]))  return 0;
 		return 1;
+	}
+	static int is_strliteral(const string& s) {
+		return s.size() >= 2 && s[0] == '"' && s.back() == '"';
 	}
 	static vector<string> split(const string& str) {
 		vector<string> vs;
