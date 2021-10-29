@@ -17,5 +17,5 @@ dim string b
 
 function f(int a)
 	dim b
-	print "hello world 123 &"
+	print "hello world 123 &", "poop"
 end function

@@ -75,7 +75,7 @@ struct Node {
 		// spacing
 		string indstr(ind*2, ' ');
 		if      (last == NT_LIST || type == NT_LIST)  printf("\n%s", indstr.c_str());
-		else if (last == NT_TOKEN)  printf(" ");
+		else if (last != NT_NIL)  printf(" ");
 		// show
 		switch (type) {
 		case NT_NIL:      printf("nil ");  break;

@@ -144,8 +144,13 @@ struct Parser : InputFile {
 		require("'print");
 		auto& nn = p.pushlist();
 			nn.pushtoken("print");
-		if (expect("@literal"))
-			nn.push( Node::Literal(presults.at(0)) );
+		while (!eol())
+			if      (expect("endl")) ;
+			else if (expect("',"))  nn.push(Node::Literal(" "));
+			else if (expect("';"))  nn.push(Node::Literal("\t"));
+			else if (expect("@literal"))  nn.push(Node::Literal( presults.at(0) ));
+			else    error();
+		// nn.push(Node::Literal("\n"));
 		nextline();
 	}
 
