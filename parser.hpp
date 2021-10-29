@@ -27,6 +27,7 @@ struct Parser : InputFile {
 	map<string, Prog::Dim>  globals, locals;
 	map<string, Prog::Func> functions;
 
+
 	void p_program() {
 		prog = Node::List();
 		prog.pushtoken("program");
@@ -41,7 +42,7 @@ struct Parser : InputFile {
 		while (!eof())
 			if      (expect("endl"))  nextline();
 			else if (section == "type"      && peek("'type"))      p_type(nn);
-			else if (section == "dimglobal" && peek("'dim"))       p_dimglobal(nn);
+			else if (section == "dimglobal" && peek("'dim"))       p_dim("global", nn);
 			else if (section == "function"  && peek("'function"))  p_function(nn);
 			else    break;
 	}
@@ -74,14 +75,16 @@ struct Parser : InputFile {
 		nextline();
 	}
 	
-	void p_dimglobal(Node& p) {
+	void p_dim(const string& scope, Node& p) {
+		assert(scope == "global" || scope == "local");
 		string name, type;
-		if      (expect("'dim @identifier @identifier"))  name = presults.at(1), type = presults.at(0);
+		if      (expect("'dim @identifier @identifier endl"))  name = presults.at(1), type = presults.at(0);
 		else if (require("'dim @identifier endl"))  name = presults.at(0), type = "int";
 		if (type == "integer")  type = "int";
 			typecheck(type);
-			namecollision(name);
-			globals[name] = { name, type };
+			namecollision(name, scope);
+			if      (scope == "global")  globals[name] = { name, type };
+			else if (scope == "local" )  locals [name] = { name, type };
 		Node& nn = p.pushlist();
 		nn.pushtokens({ "dim", name, type });
 		nextline();
@@ -94,23 +97,68 @@ struct Parser : InputFile {
 			functions[fname] = { fname };
 		auto& nn = p.pushlist();
 			nn.pushtokens({ "function", fname });
-
 		// arguments
 		auto& args = nn.pushlist();
 			args.pushtoken("args");
-		// while (!eol()) {
-		// 	if (peek("')"))  break;
-		// }
+		while (!eol()) {
+			string name, type;
+			if (!expect("@identifier @identifier"))  break;
+				name = presults.at(1), type = presults.at(0);
+				typecheck(type);
+				namecollision(name);
+				if (functions[fname].args.count(name))  error();  // additional name collision
+				functions[fname].args[name] = locals[name] = { name, type };  // save argument
+				args.pushlist().pushtokens({ "dim", name, type });
+			if (peek("')"))  break;
+			require("',");
+		}
 		require("') endl");
 		nextline();
-
+		// local dims
+		auto& dims = nn.pushlist();
+			dims.pushtokens({ "section", "dimlocal" });
+		while (!eof())
+			if      (expect("'endl")) ;
+			else if (peek("'dim"))  p_dim("local", dims);
+			else    break;
 		// block
-
+		p_block(nn);
 		// end function
 		require("'end 'function endl");
 		nextline();
+		locals = {}; // reset local dims
 	}
 
+	void p_block(Node& p) {
+		auto& nn = p.pushlist();
+			nn.pushtoken("block");
+		while (!eof())
+			if      (peek("'end"))     break;
+			else if (expect("'endl"))  nextline();
+			else if (peek("'print"))   p_print(nn);
+			// else if (peek("'input"))   p_input();
+			else    error();
+	}
+
+	void p_print(Node& p) {
+		require("'print");
+		auto& nn = p.pushlist();
+			nn.pushtoken("print");
+		if (expect("@literal"))
+			nn.push( Node::Literal(presults.at(0)) );
+		nextline();
+	}
+
+
+
+	// overrides
+	int require (const string& pattern) { return require (pattern, presults); }
+	int require (const string& pattern, InputPattern::Results& results) {
+		int len = peek(pattern, results);
+		if (!len)  error();
+		return pos += len, len;
+	}
+	
 
 
 	// helpers
@@ -121,7 +169,7 @@ struct Parser : InputFile {
 		if (type != "int" && type != "string" && types.count(type) == 0)  error();
 		return 0;
 	}
-	int namecollision(const string& name) {
+	int namecollision(const string& name, const string& flag="") {
 		// TODO: be careful with this function, its a bit WIP
 		for (auto& k : BASIC_KEYWORDS)
 			if (name == k)  error();
@@ -129,7 +177,7 @@ struct Parser : InputFile {
 		if (functions.count(name))  error();
 		if (locals.count(name))     error();
 		// note: allow name shadowing here
-		if (globals.count(name))    error();
+		if (flag == "global" && globals.count(name))  error();
 		return 0;
 	}
 };

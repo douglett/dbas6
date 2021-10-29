@@ -15,5 +15,7 @@ end type
 dim a
 dim string b
 
-function f()
+function f(int a)
+	dim b
+	print "hello world 123 &"
 end function

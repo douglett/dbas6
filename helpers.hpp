@@ -26,13 +26,20 @@ struct DBError : std::exception {
 
 
 
+string cleanliteral(const string& s) {
+	return (s.length() >= 2 && s[0] == '"' && s.back() == '"') ? s.substr(1, s.length()-2) : s;
+}
+
+
+
 // ----------------------------------------
 // Node syntax-tree structure 
 // ----------------------------------------
 enum NODE_TYPE {
 	NT_NIL=0,
 	NT_TOKEN,
-	NT_LIST
+	NT_LIST,
+	NT_LITERAL,
 };
 
 struct Node {
@@ -44,6 +51,7 @@ struct Node {
 	Node(NODE_TYPE _type) : type(_type) {}
 	static Node Token(const string& t) { Node n(NT_TOKEN);  return n.tok = t, n; }
 	static Node List() { return Node(NT_LIST); }
+	static Node Literal(const string& lit) { Node n(NT_LITERAL);  return n.tok = cleanliteral(lit), n; }
 
 	Node  pop() {
 		assert(type == NT_LIST && list.size() > 0);
@@ -57,7 +65,7 @@ struct Node {
 	}
 	Node& pushlist() { return push( Node::List() ); }
 	Node& pushtoken(const string& t) { return push( Node::Token(t) ); }
-	void   pushtokens(const vector<string>& toklist) {
+	void  pushtokens(const vector<string>& toklist) {
 		for (auto& t : toklist)
 			pushtoken(t);
 	}
@@ -70,8 +78,9 @@ struct Node {
 		else if (last == NT_TOKEN)  printf(" ");
 		// show
 		switch (type) {
-		case NT_NIL:    printf("nil ");  break;
-		case NT_TOKEN:  printf("%s", tok.c_str());  break;
+		case NT_NIL:      printf("nil ");  break;
+		case NT_TOKEN:    printf("%s", tok.c_str());  break;
+		case NT_LITERAL:  printf("\"%s\"", tok.c_str());  break;
 		case NT_LIST:
 			last = NT_NIL;
 			printf("(");
