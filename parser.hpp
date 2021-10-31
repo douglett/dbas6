@@ -29,6 +29,8 @@ struct Parser : InputFile {
 	string funcname;
 
 
+	// --- Program structure parsing ---
+
 	void p_program() {
 		prog = Node::List();
 		prog.pushtoken("program");
@@ -191,11 +193,7 @@ struct Parser : InputFile {
 
 
 
-// ----------------------------------------
-// Expressions
-// ----------------------------------------	
-	
-
+	// --- Expressions --- 
 
 	void p_expr(Node& p) {
 		p_expr_or(p);
@@ -297,6 +295,8 @@ struct Parser : InputFile {
 	}
 
 
+
+	// --- Etc. ---
 
 	// overrides
 	int require (const string& pattern) { return require (pattern, presults); }
