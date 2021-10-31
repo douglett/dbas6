@@ -40,11 +40,13 @@ enum NODE_TYPE {
 	NT_TOKEN,
 	NT_LIST,
 	NT_STRLITERAL,
+	// NT_INTEGER,
 };
 
 struct Node {
 	NODE_TYPE type;
 	string tok;
+	// int32_t i = 0;
 	vector<Node> list;
 
 	Node() : type(NT_NIL) {}

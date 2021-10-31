@@ -121,7 +121,7 @@ struct Parser : InputFile {
 			require("',");
 		}
 		require("') endl");
-		nextline();
+			nextline();
 		// local dims
 		auto& dims = nn.pushlist();
 			dims.pushtokens({ "section", "dimlocal" });
@@ -133,19 +133,20 @@ struct Parser : InputFile {
 		p_block(nn);
 		// end function
 		require("'end 'function endl");
-		nextline();
-		// locals = {}; // reset local / argument dims
-		funcname = "";
+			nextline();
+			// locals = {}; // reset local / argument dims
+			funcname = "";
 	}
 
 	void p_block(Node& p) {
 		auto& nn = p.pushlist();
 			nn.pushtoken("block");
 		while (!eof())
-			if      (peek("'end"))     break;
-			else if (expect("'endl"))  nextline();
-			else if (peek("'print"))   p_print(nn);
+			if      (peek("'end") || peek("'else"))  break;  // possible block end statements
+			else if (expect("endl"))  nextline();  // empty line
+			else if (peek("'print"))  p_print(nn);
 			// else if (peek("'input"))   p_input();
+			else if (peek("'if"))     p_if(nn);
 			else    error();
 	}
 
@@ -158,49 +159,118 @@ struct Parser : InputFile {
 			else if (expect("',"))  l.push(Node::Literal(" "));
 			else if (expect("';"))  l.push(Node::Literal("\t"));
 			else if (expect("@literal"))  l.push(Node::Literal( presults.at(0) ));
+			// TODO: string / object expression
 			else {
-				// auto type = p_varpath(l);
-				auto type = p_expr(l);
-				if (type == "int" || type == "string") {
-					// TODO: do I need this?
-					auto n = l.pop();
-					auto& ll = l.pushlist();
-					if   (type == "int")  ll.pushtoken("int_to_string");
-					else ll.pushtoken("ptr_to_string");
-					ll.push(n);
-				}
-				else    error();
+				auto& ll = l.pushlist();
+					ll.pushtoken("int_to_string");
+					p_expr(ll);
 			}
 		// l.push(Node::Literal("\n"));
 		nextline();
 	}
-	
-	string p_expr(Node& p) {
-		return p_expr_add(p);
+
+	void p_if(Node& p) {
+		require("'if");
+		auto& l = p.pushlist();
+			l.pushtoken("if");
+		// first comparison
+		p_expr(l);
+			require("endl");
+			nextline();
+		p_block(l);
+		// else-if statements
+		if (expect("'else 'if"))
+			p_expr(l), require("endl"), nextline(), p_block(l);
+		// last else
+		if (expect("'else endl"))
+			l.pushtoken("true"), nextline(), p_block(l);
+		// block end
+		require("'end 'if endl");
+		nextline();
 	}
+
+
+
+// ----------------------------------------
+// Expressions
+// ----------------------------------------	
 	
-	string p_expr_add(Node& p) {
-		auto type1 = p_atom(p);
-		if (expect("'+")) {
-			if (type1 != "int")  error();
-			auto  type2 = p_expr_add(p);
-			if (type2 != type1)  error();
-			auto  rhs   = p.pop();
-			auto  lhs   = p.pop();
-			auto& l     = p.pushlist();
-				l.pushtoken("add");
+
+
+	void p_expr(Node& p) {
+		p_expr_or(p);
+	}
+
+	void p_expr_or(Node& p) {
+		p_expr_and(p);
+		if (expect("'| '|")) {
+			auto lhs = p.pop();
+			auto& l  = p.pushlist();
+				l.pushtoken("or");
 				l.push(lhs);
-				l.push(rhs);
+			p_expr_or(l);  // parse rhs
 		}
-		return type1;
+	}
+
+	void p_expr_and(Node& p) {
+		p_expr_comp(p);
+		if (expect("'& '&")) {
+			auto lhs = p.pop();
+			auto& l  = p.pushlist();
+				l.pushtoken("and");
+				l.push(lhs);
+			p_expr_and(l);  // parse rhs
+		}
+	}
+
+	// int expectany(const vector<string>& patterns) {
+	// 	int len = 0;
+	// 	for (auto& p : patterns)
+	// 		if (( len = expect(p) ))  return len;
+	// 	return 0;
+	// }
+
+	void p_expr_comp(Node& p) {
+		p_expr_add(p);
+		// if (expectany({ "@'= @'=", "@'! @'=", "@'<", "@'>", "@'< @'=", "@'> @'=" })) {
+		if (expect("@'= @'=") || expect("@'! @'=") || expect("@'<") || expect("@'>") || expect("@'< @'=") || expect("@'> @'=")) {
+			string op = presults.at(0) + (presults.size() > 1 ? presults.at(1) : "");
+			auto lhs = p.pop();
+			auto& l  = p.pushlist();
+				l.pushtoken("comp_"+op);
+				l.push(lhs);
+			p_expr_add(l);  // parse rhs
+		}
 	}
 	
-	string p_atom(Node& p) {
-		if      (peek("identifier"))  return p_varpath(p);
-		else if (expect("@integer")) {
-			return p.pushtoken(presults.at(0)), "int";
+	void p_expr_add(Node& p) {
+		p_expr_mul(p);
+		if (expect("@'+") || expect("@'-")) {
+			auto lhs = p.pop();
+			auto& l  = p.pushlist();
+				l.pushtoken(presults.at(0) == "+" ? "add" : "sub");
+				l.push(lhs);
+			p_expr_add(l);  // parse rhs
 		}
-		else    return error(), "nil";
+	}
+
+	void p_expr_mul(Node& p) {
+		p_atom(p);
+		if (expect("@'*") || expect("@'/")) {
+			auto lhs = p.pop();
+			auto& l  = p.pushlist();
+				l.pushtoken(presults.at(0) == "*" ? "mul" : "div");
+				l.push(lhs);
+			p_expr_mul(l);  // parse rhs
+		}
+	}
+	
+	void p_atom(Node& p) {
+		string type;
+		if      (peek("identifier"))  type = p_varpath(p);
+		else if (expect("@integer"))  p.pushtoken(presults.at(0)), type = "int";
+		else    error();
+		if (type != "int")  error();
 	}
 
 	string p_varpath(Node& p) {

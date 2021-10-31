@@ -19,5 +19,10 @@ dim a
 
 function f(int a)
 	dim c
-	print "hello world 123 &", "poop", aa, 123 + 1 + 1
+	if a == 1
+		print "hello world!"
+	else
+		print "hello village!"
+	end if
+	print "hello world 123 &", "poop", aa, 123 + 1 + 10 * 1 - 3
 end function
