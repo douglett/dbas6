@@ -144,12 +144,24 @@ struct Parser : InputFile {
 		auto& nn = p.pushlist();
 			nn.pushtoken("block");
 		while (!eof())
-			if      (peek("'end") || peek("'else"))  break;  // possible block end statements
-			else if (expect("endl"))  nextline();  // empty line
+			if      (expect("endl"))  nextline();  // empty line
+			else if (peek("'end"))    break;  // block end statement
+			else if (peek("'else"))   break;  // block end statement
 			else if (peek("'print"))  p_print(nn);
+			else if (peek("'let"))    p_let(nn);
 			// else if (peek("'input"))   p_input();
 			else if (peek("'if"))     p_if(nn);
 			else    error();
+	}
+
+	void p_let(Node& p) {
+		require("'let");
+		p_varpath_set(p);
+		auto& path = p.back();
+		require("'=");
+		p_expr(path);
+		require("endl");
+		nextline();
 	}
 
 	void p_print(Node& p) {
@@ -272,26 +284,54 @@ struct Parser : InputFile {
 	}
 
 	string p_varpath(Node& p) {
+		// GET variables
 		require("@identifier");
 		string name = presults.at(0);
 		auto& l = p.pushlist();
 			// l.pushtoken("varpath");
+		// local vars
 		if (funcname.length() && functions[funcname].args.count(name)) {
 			auto& d = functions[funcname].args[name];
 			l.pushtokens({ "get_local", d.name, d.type });
 			return d.type;
 		}
-		if (funcname.length() && functions[funcname].locals.count(name)) {
+		else if (funcname.length() && functions[funcname].locals.count(name)) {
 			auto& d = functions[funcname].locals[name];
 			l.pushtokens({ "get_local", d.name, d.type });
 			return d.type;
 		}
-		if (globals.count(name)) {
+		// global vars
+		else if (globals.count(name)) {
 			auto&d = globals[name];
 			l.pushtokens({ "get_global", d.name, d.type });
 			return d.type;
 		}
-		return error(), "nil";
+		else  return error(), "nil";
+	}
+
+	string p_varpath_set(Node& p) {
+		// SET variables
+		require("@identifier");
+		string name = presults.at(0);
+		auto& l = p.pushlist();
+		// local vars
+		if (funcname.length() && functions[funcname].args.count(name)) {
+			auto& d = functions[funcname].args[name];
+			l.pushtokens({ "set_local", d.name });
+			return d.type;
+		}
+		else if (funcname.length() && functions[funcname].locals.count(name)) {
+			auto& d = functions[funcname].locals[name];
+			l.pushtokens({ "set_local", d.name });
+			return d.type;
+		}
+		// global vars
+		else if (globals.count(name)) {
+			auto&d = globals[name];
+			l.pushtokens({ "set_global", d.name });
+			return d.type;
+		}
+		else  return error(), "nil";
 	}
 
 

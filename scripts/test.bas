@@ -24,9 +24,10 @@ end function
 
 function main()
 	print "hello world"
-	if a == 1
-		print "a is 1!"
+	let a = 5+5
+	if a == 10
+		print "a is 10!"
 	else
-		print "a is NOT 1!"
+		print "a is NOT 10!"
 	end if
 end function

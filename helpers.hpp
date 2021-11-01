@@ -112,15 +112,19 @@ struct Node {
 		return type == NT_LIST && list.size() > 0 && list.at(0).type == NT_TOKEN
 			? list.at(0).tok : NIL_STRING;
 	}
-	Node& at(int pos) {
-		return list.at(pos);
-	}
-	const Node& at(int pos) const {
-		return list.at(pos);
-	}
 	string tokat(int pos) const {
 		assert(type == NT_LIST && pos >= 0 && pos < list.size());
 		return list[pos].type == NT_TOKEN ? list[pos].tok : NIL_STRING;
+	}
+	const Node& at(int pos) const { return ((Node*)this)->at(pos); }
+	const Node& back()      const { return ((Node*)this)->back(); }
+	Node& at(int pos) {
+		assert(type == NT_LIST);
+		return list.at(pos);
+	}
+	Node& back() {
+		assert(type == NT_LIST && list.size() > 0);
+		return list.back();
 	}
 
 

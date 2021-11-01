@@ -8,11 +8,19 @@ WIP basic (again)
 
 TODO:
 -----
-- first runtime primatives
-- basic assignment
-- basic expressions
+- order of addition and subtraction!
+- call statements
+	- argument counting
+	- argument type checking
+- runtime calls
+- runtime calls in expressions
+- varpath - difference between 'get' and 'set' paths
 - string auto malloc / free
-- first item
 
 DONE:
 -----
+- running simple programs
+- first runtime primatives
+- basic expressions
+- basic assignment
+- first item
