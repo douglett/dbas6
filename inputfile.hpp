@@ -8,6 +8,7 @@
 #include <fstream>
 #include <sstream>
 #include <cassert>
+#include "helpers.hpp"
 using namespace std;
 
 
@@ -79,30 +80,6 @@ struct InputPattern {
 		else if (p.pattern == "integer")     return is_integer(tokens[pos]);
 		else if (p.pattern == "literal")     return tokens[pos].size() >= 2 && tokens[pos][0] == '"' && tokens[pos].back() == '"';
 		else    return assert("Pattern::match > unknown pattern" == NULL), 0;
-	}
-
-	static int is_identifier(const string& s) {
-		if (s.length() == 0)  return 0;
-		for (int i = 0; i < s.length(); i++)
-			if      (i == 0 && !isalpha(s[i]) && s[i] != '_')  return 0;
-			else if (i  > 0 && !isalnum(s[i]) && s[i] != '_')  return 0;
-		return 1;
-	}
-	static int is_integer(const string& s) {
-		if (s.length() == 0)  return 0;
-		for (int i = 0; i < s.length(); i++)
-			if (!isdigit(s[i]))  return 0;
-		return 1;
-	}
-	static int is_strliteral(const string& s) {
-		return s.size() >= 2 && s[0] == '"' && s.back() == '"';
-	}
-	static vector<string> split(const string& str) {
-		vector<string> vs;
-		stringstream ss(str);
-		string s;
-		while(ss >> s)  vs.push_back(s);
-		return vs;
 	}
 };
 

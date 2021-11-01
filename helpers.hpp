@@ -12,23 +12,57 @@ using namespace std;
 // ----------------------------------------
 // Special language exceptions
 // ----------------------------------------
-struct DBError : std::exception {
+struct DBErrorBase : std::exception {
 	string error_string;
+	virtual const char* what() const noexcept {
+		return error_string.c_str();
+	}
+};
+struct DBError : DBErrorBase {
 	// string msg;
 	int lno;
 	DBError(int _lno) : lno(_lno) {
 		error_string = "DougBasic Syntax error, line " + to_string(lno+1);
 	}
-	virtual const char* what() const noexcept {
-		return error_string.c_str();
+};
+struct DBRunError : DBErrorBase {
+	DBRunError() {
+		error_string = "DougBasic Runtime error";
 	}
 };
 
 
 
+// ----------------------------------------
+// Useful functions
+// ----------------------------------------
+int is_identifier(const string& s) {
+	if (s.length() == 0)  return 0;
+	for (int i = 0; i < s.length(); i++)
+		if      (i == 0 && !isalpha(s[i]) && s[i] != '_')  return 0;
+		else if (i  > 0 && !isalnum(s[i]) && s[i] != '_')  return 0;
+	return 1;
+}
+int is_integer(const string& s) {
+	if (s.length() == 0)  return 0;
+	for (int i = 0; i < s.length(); i++)
+		if (!isdigit(s[i]))  return 0;
+	return 1;
+}
+int is_strliteral(const string& s) {
+	return s.size() >= 2 && s[0] == '"' && s.back() == '"';
+}
 string clean_strliteral(const string& s) {
 	return (s.length() >= 2 && s[0] == '"' && s.back() == '"') ? s.substr(1, s.length()-2) : s;
 }
+vector<string> split(const string& str) {
+	vector<string> vs;
+	stringstream ss(str);
+	string s;
+	while(ss >> s)  vs.push_back(s);
+	return vs;
+}
+// string join(const vector<string>& vs)
 
 
 
@@ -42,6 +76,8 @@ enum NODE_TYPE {
 	NT_STRLITERAL,
 	// NT_INTEGER,
 };
+
+const string NIL_STRING="<nil>";
 
 struct Node {
 	NODE_TYPE type;
@@ -72,7 +108,23 @@ struct Node {
 			pushtoken(t);
 	}
 
-	void show(int ind=0) {
+	string cmd() const {
+		return type == NT_LIST && list.size() > 0 && list.at(0).type == NT_TOKEN
+			? list.at(0).tok : NIL_STRING;
+	}
+	Node& at(int pos) {
+		return list.at(pos);
+	}
+	const Node& at(int pos) const {
+		return list.at(pos);
+	}
+	string tokat(int pos) const {
+		assert(type == NT_LIST && pos >= 0 && pos < list.size());
+		return list[pos].type == NT_TOKEN ? list[pos].tok : NIL_STRING;
+	}
+
+
+	void show(int ind=0) const {
 		static NODE_TYPE last = NT_NIL;
 		// spacing
 		string indstr(ind*2, ' ');
@@ -81,7 +133,7 @@ struct Node {
 		else if (last != NT_NIL)  printf(" ");
 		// show
 		switch (type) {
-		case NT_NIL:         printf("nil ");  break;
+		case NT_NIL:         printf("%s ", NIL_STRING.c_str());  break;
 		case NT_TOKEN:       printf("%s", tok.c_str());  break;
 		case NT_STRLITERAL:  printf("\"%s\"", tok.c_str());  break;
 		case NT_LIST:

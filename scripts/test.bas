@@ -19,10 +19,14 @@ dim a
 
 function f(int a)
 	dim c
-	if a == 1
-		print "hello world!"
-	else
-		print "hello village!"
-	end if
 	print "hello world 123 &", "poop", aa, 123 + 1 + 10 * 1 - 3
+end function
+
+function main()
+	print "hello world"
+	if a == 1
+		print "a is 1!"
+	else
+		print "a is NOT 1!"
+	end if
 end function

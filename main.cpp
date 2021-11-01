@@ -1,6 +1,8 @@
 #include <iostream>
 #include "inputfile.hpp"
 #include "parser.hpp"
+#include "runtime.hpp"
+#include <iostream>
 using namespace std;
 
 
@@ -18,12 +20,15 @@ void inputtest() {
 
 int main() {
 	printf("hello world\n");
+	printf("---\n");
 	// inputtest();
 
 	Parser p;
 	p.load("scripts/test.bas");
 	p.p_program();
-	// printf("---\n");
 	p.prog.show();
-	// printf("---\n");
+	printf("---\n");
+
+	Runtime r(p.prog);
+	r.r_prog();
 }

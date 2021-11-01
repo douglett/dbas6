@@ -126,7 +126,7 @@ struct Parser : InputFile {
 			nextline();
 		// local dims
 		auto& dims = nn.pushlist();
-			dims.pushtokens({ "section", "dimlocal" });
+			dims.pushtokens({ "dimlocal" });
 		while (!eof())
 			if      (expect("'endl")) ;
 			else if (peek("'dim"))  p_dim("local", dims);
@@ -235,7 +235,7 @@ struct Parser : InputFile {
 			string op = presults.at(0) + (presults.size() > 1 ? presults.at(1) : "");
 			auto lhs = p.pop();
 			auto& l  = p.pushlist();
-				l.pushtoken("comp_"+op);
+				l.pushtoken("comp"+op);
 				l.push(lhs);
 			p_expr_add(l);  // parse rhs
 		}
