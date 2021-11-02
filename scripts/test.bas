@@ -19,15 +19,18 @@ dim a
 
 function f(int a)
 	dim c
+	print "func f calling!", "argument:", a
 	print "hello world 123 &", "poop", aa, 123 + 1 + 10 * 1 - 3
 end function
 
 function main()
 	print "hello world"
-	let a = 5+5
+	let a = 5+5-3-2+1
+	print "a is:", a
 	if a == 10
 		print "a is 10!"
 	else
 		print "a is NOT 10!"
 	end if
+	call f(20)
 end function
