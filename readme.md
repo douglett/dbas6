@@ -10,12 +10,13 @@ TODO:
 -----
 - call statements
 	- argument type checking
-- runtime calls in expressions
 - varpath - difference between 'get' and 'set' paths
 - string auto malloc / free
 
 DONE:
 -----
+- return statement
+- runtime calls in expressions
 - runtime calls
 - call statements
 	- argument counting

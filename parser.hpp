@@ -140,14 +140,15 @@ struct Parser : InputFile {
 		auto& nn = p.pushlist();
 			nn.pushtoken("block");
 		while (!eof())
-			if      (expect("endl"))  nextline();  // empty line
-			else if (peek("'end"))    break;  // block end statement
-			else if (peek("'else"))   break;  // block end statement
-			else if (peek("'print"))  p_print(nn);
+			if      (expect("endl"))   nextline();  // empty line
+			else if (peek("'end"))     break;  // block end statement
+			else if (peek("'else"))    break;  // block end statement
+			else if (peek("'print"))   p_print(nn);
 			// else if (peek("'input"))   p_input();
-			else if (peek("'if"))     p_if(nn);
-			else if (peek("'let"))    p_let(nn);
-			else if (peek("'call"))   p_call(nn);
+			else if (peek("'return"))  p_return(nn);
+			else if (peek("'if"))      p_if(nn);
+			else if (peek("'let"))     p_let(nn);
+			else if (peek("'call"))    p_call(nn);
 			else    error();
 	}
 
@@ -167,6 +168,15 @@ struct Parser : InputFile {
 					p_expr(ll);
 			}
 		// l.push(Node::Literal("\n"));
+		require("endl"), nextline();
+	}
+
+	void p_return(Node& p) {
+		require("'return");
+		auto& l = p.pushlist();
+			l.pushtoken("return");
+		if    (expect("endl"))  l.pushtoken("0");
+		else  p_expr(l);
 		require("endl"), nextline();
 	}
 
@@ -195,18 +205,22 @@ struct Parser : InputFile {
 	}
 
 	void p_call(Node& p) {
-		require("'call @identifier '(");
-		auto fname = presults.at(0);
-		auto& l = p.pushlist();
-			l.pushtokens({ "call", fname });
-		auto& args = l.pushlist();
-		while (!eol()) {
-			if (peek("')"))  break;
-			p_expr(args);
-			if (!expect("',"))  break;
-		}
-		if (functions[fname].args.size() != args.list.size())  error();
-		require("') endl"), nextline();
+		// require("'call @identifier '(");
+		// auto fname = presults.at(0);
+		// auto& l = p.pushlist();
+		// 	l.pushtokens({ "call", fname });
+		// auto& args = l.pushlist();
+		// while (!eol()) {
+		// 	if (peek("')"))  break;
+		// 	p_expr(args);
+		// 	if (!expect("',"))  break;
+		// }
+		// if (functions[fname].args.size() != args.list.size())  error();
+		// require("') endl"), nextline();
+		
+		require("'call");
+		p_expr_call(p);
+		require("endl"), nextline();
 	}
 
 
@@ -283,10 +297,25 @@ struct Parser : InputFile {
 	
 	void p_expr_atom(Node& p) {
 		string type;
-		if      (peek("identifier"))  type = p_varpath(p);
-		else if (expect("@integer"))  p.pushtoken(presults.at(0)), type = "int";
+		if      (peek("identifier '("))  p_expr_call(p), type = "int";
+		else if (peek("identifier"))     type = p_varpath(p);
+		else if (expect("@integer"))     p.pushtoken(presults.at(0)), type = "int";
 		else    error();
 		if (type != "int")  error();
+	}
+
+	void p_expr_call(Node& p) {
+		require("@identifier '(");
+		auto fname = presults.at(0);
+		auto& l = p.pushlist();
+			l.pushtokens({ "call", fname });
+		auto& args = l.pushlist();
+		while (!eol() && !peek("')")) {
+			p_expr(args);
+			if (!expect("',"))  break;
+		}
+		require("')");
+		if (functions[fname].args.size() != args.list.size())  error();
 	}
 
 	string p_varpath(Node& p) {
@@ -356,11 +385,11 @@ struct Parser : InputFile {
 
 	// helpers
 	int error() {
-		throw DBError(lno);
+		throw DBParseError(lno);
 	}
 	int error2(const string& msg) {
 		// Temporary WIP parser errors
-		DBError d(lno);
+		DBParseError d(lno);
 		d.error_string += " :: " + msg;
 		throw d;
 	}

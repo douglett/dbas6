@@ -23,6 +23,10 @@ function f(int a)
 	print "hello world 123 &", "poop", aa, 123 + 1 + 10 * 1 - 3
 end function
 
+function square(int a)
+	return a * a
+end function
+
 function main()
 	print "hello world"
 	let a = 5+5-3-2+1
@@ -33,4 +37,6 @@ function main()
 		print "a is NOT 10!"
 	end if
 	call f(20)
+	let a = 10 + square(4)
+	print "inline call result:", a
 end function

@@ -12,24 +12,27 @@ using namespace std;
 // ----------------------------------------
 // Special language exceptions
 // ----------------------------------------
-struct DBErrorBase : std::exception {
+struct DBError : std::exception {
 	string error_string;
 	virtual const char* what() const noexcept {
 		return error_string.c_str();
 	}
 };
-struct DBError : DBErrorBase {
-	// string msg;
+struct DBParseError : DBError {
 	int lno;
-	DBError(int _lno) : lno(_lno) {
+	DBParseError(int _lno) : lno(_lno) {
 		error_string = "DougBasic Syntax error, line " + to_string(lno+1);
 	}
 };
-struct DBRunError : DBErrorBase {
+struct DBRunError : DBError {
 	DBRunError() {
 		error_string = "DougBasic Runtime error";
 	}
 };
+struct DBCtrl : std::exception { };
+struct DBCtrlReturn : DBCtrl { };
+struct DBCtrlBreak : DBCtrl { };
+struct DBCtrlContinue : DBCtrl { };
 
 
 

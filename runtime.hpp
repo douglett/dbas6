@@ -33,23 +33,40 @@ struct Runtime {
 		throw DBRunError();
 	}
 
-	void r_func(const string& fname, vector<int32_t> args) {
+	int32_t r_func(const string& fname, vector<int32_t> args) {
 		auto& func = findfunc(fname);
 		frames.push_back({ });
+			frames.back().vars["$ret"] = 0;  // default return value
 		for (auto& n : func.list)
+			// build arguments
 			if (n.cmd() == "args") {
 				int argc = 0;
 				for (auto& d : n.list)
 					if (d.cmd() == "dim")  frames.back().vars[d.tokat(1)] = args.at(argc++);
 			}
+			// build local variables
 			else if (n.cmd() == "dimlocal") {
 				for (auto& d : n.list)
 					if (d.cmd() == "dim")  frames.back().vars[d.tokat(1)] = 0;
 			}
+			// run block
 			else if (n.cmd() == "block") {
-				r_block(n);
+				try { r_block(n); }
+				catch (DBCtrlReturn r) { }
 			}
+			// cleanup
+			// ...
+		int32_t _ret = frames.back().vars["$ret"];
 		frames.pop_back();
+		return _ret;
+	}
+
+	int32_t r_call(const Node& n) {
+		auto fname = n.tokat(1);
+		vector<int32_t> arglist;
+		for (auto& arg : n.at(2).list)
+			arglist.push_back(r_expr(arg));
+		return r_func(fname, arglist);
 	}
 
 	void r_block(const Node& blk) {
@@ -61,6 +78,7 @@ struct Runtime {
 			else if (n.cmd() == "set_global")  r_let(n);
 			else if (n.cmd() == "set_local")   r_let(n);
 			else if (n.cmd() == "call")        r_call(n);
+			else if (n.cmd() == "return")      r_return(n);
 			else    error2("block error: "+n.cmd());
 		}
 	}
@@ -84,6 +102,11 @@ struct Runtime {
 			}
 		}
 	}
+	
+	void r_return(const Node& n) {
+		frames.back().vars.at("$ret") = r_expr(n.at(1));
+		throw DBCtrlReturn();
+	}
 
 	void r_let(const Node& n) {
 		if      (n.cmd() == "set_global")  frames.front().vars.at(n.tokat(1)) = r_expr(n.at(2));
@@ -91,27 +114,18 @@ struct Runtime {
 		else    error2("let error");
 	}
 
-	void r_call(const Node& n) {
-		auto fname = n.tokat(1);
-		// auto& args  = n.tokat(2);
-		vector<int32_t> arglist;
-
-		for (auto& arg : n.at(2).list)
-			arglist.push_back(r_expr(arg));
-		r_func(fname, arglist);
-	}
-
-	int r_expr(const Node& n) {
+	int32_t r_expr(const Node& n) {
 		if      (n.tok == "true")          return 1;
 		else if (n.tok == "false")         return 0;
 		else if (is_integer(n.tok))        return stoi(n.tok);
-		else if (n.cmd() == "get_global")  return frames.front().vars.at(n.tokat(1));
-		else if (n.cmd() == "get_local")   return frames.back().vars.at(n.tokat(1));
 		else if (n.cmd() == "comp==")      return r_expr(n.at(1)) == r_expr(n.at(2));
 		else if (n.cmd() == "add")         return r_expr(n.at(1)) +  r_expr(n.at(2));
 		else if (n.cmd() == "sub")         return r_expr(n.at(1)) -  r_expr(n.at(2));
 		else if (n.cmd() == "mul")         return r_expr(n.at(1)) *  r_expr(n.at(2));
 		else if (n.cmd() == "div")         return r_expr(n.at(1)) /  r_expr(n.at(2));
+		else if (n.cmd() == "get_global")  return frames.front().vars.at(n.tokat(1));
+		else if (n.cmd() == "get_local")   return frames.back().vars.at(n.tokat(1));
+		else if (n.cmd() == "call")        return r_call(n);
 
 		printf(">> expr error\n");
 		n.show();
