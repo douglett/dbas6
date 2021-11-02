@@ -26,7 +26,7 @@ struct Parser : InputFile {
 	map<string, Prog::Type> types;
 	map<string, Prog::Dim>  globals;
 	map<string, Prog::Func> functions;
-	string funcname;
+	string cfuncname, ctypename;
 
 
 	// --- Program structure parsing ---
@@ -45,18 +45,18 @@ struct Parser : InputFile {
 		while (!eof())
 			if      (expect("endl"))  nextline();
 			else if (section == "type"      && peek("'type"))      p_type(nn);
-			else if (section == "dimglobal" && peek("'dim"))       p_dim("global", nn);
+			else if (section == "dimglobal" && peek("'dim"))       p_dim(nn);
 			else if (section == "function"  && peek("'function"))  p_function(nn);
 			else    break;
 	}
 
 	void p_type(Node& p) {
 		require("'type @identifier endl");
-		string tname = presults.at(0);
-			namecollision(tname);
-			types[tname] = { tname };
+		namecollision(presults.at(0));
+			ctypename = presults.at(0);
+			types[ctypename] = { ctypename };
 		Node& nn = p.pushlist();
-			nn.pushtokens({ "type", tname });
+			nn.pushtokens({ "type", ctypename });
 		nextline();
 		// type members
 		while (!eof()) {
@@ -66,45 +66,36 @@ struct Parser : InputFile {
 			else if (expect("'dim @identifier endl"))  name = presults.at(0), type = "int";
 			else    break;
 			if (type == "integer")  type = "int";
-				typecheck(type);
-				namecollision(name);
-				if (types[tname].members.count(name))  error();  // additional name collision inside this type
-				types[tname].members[name] = { name, type };  // save type member
+				typecheck(type), namecollision(name);
+				types.at(ctypename).members[name] = { name, type };  // save type member
 			nn.pushlist().pushtokens({ "dim", name, type });
 			nextline();
 		}
 		// end type
+		ctypename = "";
 		require("'end 'type endl"), nextline();
 	}
 	
-	void p_dim(const string& scope, Node& p) {
-		assert(scope == "global" || scope == "local");
+	void p_dim(Node& p) {
 		string name, type;
 		if      (expect("'dim @identifier @identifier endl"))  name = presults.at(1), type = presults.at(0);
 		else if (require("'dim @identifier endl"))  name = presults.at(0), type = "int";
 		if (type == "integer")  type = "int";
 		if (type != "int")  error2("TODO: non-int types");
-			typecheck(type);
-			namecollision(name);
-			if (scope == "global") {
-				if (globals.count(name))  error();  // additional check on global namespace
-				globals[name] = { name, type };
-			}
-			else if (scope == "local") {
-				functions.at(funcname).locals[name] = { name, type };
-			}
+			typecheck(type), namecollision(name);
+			if    (!cfuncname.length())  globals[name] = { name, type };
+			else  functions.at(cfuncname).locals[name] = { name, type };
 		p.pushlist().pushtokens({ "dim", name, type });
 		nextline();
 	}
 
 	void p_function(Node& p) {
 		require("'function @identifier '(");
-		string fname = presults.at(0);
-			namecollision(fname);
-			funcname = fname;
-			functions[funcname] = { funcname };
+		namecollision(presults.at(0));
+			cfuncname = presults.at(0);
+			functions[cfuncname] = { cfuncname };
 		auto& nn = p.pushlist();
-			nn.pushtokens({ "function", funcname });
+			nn.pushtokens({ "function", cfuncname });
 		// arguments
 		auto& args = nn.pushlist();
 			args.pushtoken("args");
@@ -113,10 +104,9 @@ struct Parser : InputFile {
 			if (!expect("@identifier @identifier"))  break;
 			name = presults.at(1), type = presults.at(0);
 			if (type != "int")  error2("TODO: non-int types");
-				typecheck(type);
-				namecollision(name);
-				if (functions[funcname].args.count(name))  error();  // additional name collision
-				functions[funcname].args[name] = { name, type };  // save argument
+				typecheck(type), namecollision(name);
+				// if (functions[cfuncname].args.count(name))  error();  // additional name collision
+				functions[cfuncname].args[name] = { name, type };  // save argument
 				args.pushlist().pushtokens({ "dim", name, type });
 			if (peek("')"))  break;
 			require("',");
@@ -127,13 +117,13 @@ struct Parser : InputFile {
 			dims.pushtokens({ "dimlocal" });
 		while (!eof())
 			if      (expect("'endl")) ;
-			else if (peek("'dim"))  p_dim("local", dims);
+			else if (peek("'dim"))  p_dim(dims);
 			else    break;
 		// block
 		p_block(nn);
 		// end function
+		cfuncname = "";
 		require("'end 'function endl"), nextline();
-		funcname = "";
 	}
 
 	void p_block(Node& p) {
@@ -205,19 +195,6 @@ struct Parser : InputFile {
 	}
 
 	void p_call(Node& p) {
-		// require("'call @identifier '(");
-		// auto fname = presults.at(0);
-		// auto& l = p.pushlist();
-		// 	l.pushtokens({ "call", fname });
-		// auto& args = l.pushlist();
-		// while (!eol()) {
-		// 	if (peek("')"))  break;
-		// 	p_expr(args);
-		// 	if (!expect("',"))  break;
-		// }
-		// if (functions[fname].args.size() != args.list.size())  error();
-		// require("') endl"), nextline();
-		
 		require("'call");
 		p_expr_call(p);
 		require("endl"), nextline();
@@ -253,16 +230,8 @@ struct Parser : InputFile {
 		}
 	}
 
-	// int expectany(const vector<string>& patterns) {
-	// 	int len = 0;
-	// 	for (auto& p : patterns)
-	// 		if (( len = expect(p) ))  return len;
-	// 	return 0;
-	// }
-
 	void p_expr_comp(Node& p) {
 		p_expr_add(p);
-		// if (expectany({ "@'= @'=", "@'! @'=", "@'<", "@'>", "@'< @'=", "@'> @'=" })) {
 		if (expect("@'= @'=") || expect("@'! @'=") || expect("@'<") || expect("@'>") || expect("@'< @'=") || expect("@'> @'=")) {
 			string op = presults.at(0) + (presults.size() > 1 ? presults.at(1) : "");
 			auto lhs = p.pop();
@@ -319,19 +288,19 @@ struct Parser : InputFile {
 	}
 
 	string p_varpath(Node& p) {
-		// GET variables
+		// GET variables (TODO: messy)
 		require("@identifier");
 		string name = presults.at(0);
 		auto& l = p.pushlist();
 			// l.pushtoken("varpath");
 		// local vars
-		if (funcname.length() && functions[funcname].args.count(name)) {
-			auto& d = functions[funcname].args[name];
+		if (cfuncname.length() && functions[cfuncname].args.count(name)) {
+			auto& d = functions[cfuncname].args[name];
 			l.pushtokens({ "get_local", d.name, d.type });
 			return d.type;
 		}
-		else if (funcname.length() && functions[funcname].locals.count(name)) {
-			auto& d = functions[funcname].locals[name];
+		else if (cfuncname.length() && functions[cfuncname].locals.count(name)) {
+			auto& d = functions[cfuncname].locals[name];
 			l.pushtokens({ "get_local", d.name, d.type });
 			return d.type;
 		}
@@ -345,18 +314,18 @@ struct Parser : InputFile {
 	}
 
 	string p_varpath_set(Node& p) {
-		// SET variables
+		// SET variables (TODO: messy)
 		require("@identifier");
 		string name = presults.at(0);
 		auto& l = p.pushlist();
 		// local vars
-		if (funcname.length() && functions[funcname].args.count(name)) {
-			auto& d = functions[funcname].args[name];
+		if (cfuncname.length() && functions[cfuncname].args.count(name)) {
+			auto& d = functions[cfuncname].args[name];
 			l.pushtokens({ "set_local", d.name });
 			return d.type;
 		}
-		else if (funcname.length() && functions[funcname].locals.count(name)) {
-			auto& d = functions[funcname].locals[name];
+		else if (cfuncname.length() && functions[cfuncname].locals.count(name)) {
+			auto& d = functions[cfuncname].locals[name];
 			l.pushtokens({ "set_local", d.name });
 			return d.type;
 		}
@@ -393,20 +362,22 @@ struct Parser : InputFile {
 		d.error_string += " :: " + msg;
 		throw d;
 	}
-	int typecheck(const string& type) {
+	void typecheck(const string& type) {
 		if (type != "int" && type != "string" && types.count(type) == 0)  error();
-		return 0;
 	}
-	int namecollision(const string& name) {
-		// TODO: be careful with this function, its a bit WIP
+	void namecollision(const string& name) {
+		// defined language collisions
 		for (auto& k : BASIC_KEYWORDS)
 			if (name == k)  error();
+		// global collisions
 		if (types.count(name))      error();
 		if (functions.count(name))  error();
-		if (funcname != "" && functions.at(funcname).args.count(name))    error();
-		if (funcname != "" && functions.at(funcname).locals.count(name))  error();
-		// note: allow name shadowing here
-		// if (flag == "global" && globals.count(name))  error();
-		return 0;
+		// special type checking, based on parse state
+		if      (ctypename.length()) { if (types.at(ctypename).members.count(name))  error(); }
+		else if (cfuncname.length()) {
+			if (functions.at(cfuncname).args.count(name))    error();
+			if (functions.at(cfuncname).locals.count(name))  error();
+		}
+		else    { if (globals.count(name))  error(); }
 	}
 };
