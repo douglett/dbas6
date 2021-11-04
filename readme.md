@@ -12,6 +12,12 @@ TODO:
 	- argument type checking
 - varpath - difference between 'get' and 'set' paths
 - string auto malloc / free
+	- malloc format
+	- global malloc block
+	- global free block
+	- local malloc block
+	- local free block
+	- malloc, arrmalloc 
 
 DONE:
 -----

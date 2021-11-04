@@ -15,7 +15,7 @@ end type
 
 dim aa
 dim a
-# dim string b
+dim string b
 
 function f(int a)
 	dim c

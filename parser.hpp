@@ -23,6 +23,7 @@ const vector<string> BASIC_KEYWORDS = {
 
 struct Parser : InputFile {
 	Node prog;
+	Node setup, teardown;
 	map<string, Prog::Type> types;
 	map<string, Prog::Dim>  globals;
 	map<string, Prog::Func> functions;
@@ -33,9 +34,15 @@ struct Parser : InputFile {
 
 	void p_program() {
 		prog = Node::List();
-		prog.pushtoken("program");
+			prog.pushtoken("program");
+		setup = teardown = Node::List();
+		teardown = Node::List();
+			setup.pushtoken("setup");
+			teardown.pushtoken("teardown");
 		p_section("type", prog);
 		p_section("dimglobal", prog);
+		prog.push(setup);
+		prog.push(teardown);
 		p_section("function", prog);
 	}
 
@@ -81,11 +88,27 @@ struct Parser : InputFile {
 		if      (expect("'dim @identifier @identifier endl"))  name = presults.at(1), type = presults.at(0);
 		else if (require("'dim @identifier endl"))  name = presults.at(0), type = "int";
 		if (type == "integer")  type = "int";
-		if (type != "int")  error2("TODO: non-int types");
 			typecheck(type), namecollision(name);
 			if    (!cfuncname.length())  globals[name] = { name, type };
 			else  functions.at(cfuncname).locals[name] = { name, type };
 		p.pushlist().pushtokens({ "dim", name, type });
+		// TODO: cleanup
+		if      (type == "int") ;
+		else if (type == "float") ;
+		else {
+			if (type != "string")  error2("TODO: user types");
+			// setup
+			auto& n = setup.pushlist();
+				n.pushtokens({ cfuncname.length() ? "set_local" : "set_global" , name });
+			auto& m = n.pushlist();
+				m.pushtokens({ "malloc", "string" });  // temp
+			// teardown
+			auto& n2 = teardown.pushlist();
+				n2.pushtoken("free");
+			auto& m2 = n2.pushlist();
+				m2.pushtokens({ cfuncname.length() ? "get_local" : "get_global" , name });
+		}
+		// end dim
 		nextline();
 	}
 
@@ -94,10 +117,14 @@ struct Parser : InputFile {
 		namecollision(presults.at(0));
 			cfuncname = presults.at(0);
 			functions[cfuncname] = { cfuncname };
-		auto& nn = p.pushlist();
-			nn.pushtokens({ "function", cfuncname });
+		// set up structure
+		auto& fn = p.pushlist();
+			fn.pushtokens({ "function", cfuncname });
+		setup = teardown = Node::List();
+			setup.pushtoken("setup");
+			teardown.pushtoken("teardown");
 		// arguments
-		auto& args = nn.pushlist();
+		auto& args = fn.pushlist();
 			args.pushtoken("args");
 		while (!eol()) {
 			string name, type;
@@ -113,14 +140,16 @@ struct Parser : InputFile {
 		}
 		require("') endl"), nextline();
 		// local dims
-		auto& dims = nn.pushlist();
+		auto& dims = fn.pushlist();
 			dims.pushtokens({ "dimlocal" });
 		while (!eof())
 			if      (expect("'endl")) ;
 			else if (peek("'dim"))  p_dim(dims);
 			else    break;
 		// block
-		p_block(nn);
+		fn.push(setup);
+		p_block(fn);
+		fn.push(teardown);
 		// end function
 		cfuncname = "";
 		require("'end 'function endl"), nextline();
