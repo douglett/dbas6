@@ -5,8 +5,11 @@ using namespace std;
 
 struct Runtime {
 	struct StackFrame { map<string, int32_t> vars; };
+	struct HeapObject { int32_t index; string type; vector<int32_t> data; };
 	Node prog;
 	vector<StackFrame> frames;
+	map<int32_t, HeapObject> heap;
+	int32_t heap_top = 0;
 
 	Runtime(const Node& _prog) : prog(_prog) {
 		frames = { {} };
@@ -14,21 +17,42 @@ struct Runtime {
 
 
 	void r_prog() {
-		for (const auto& n : prog.list)
-			if      (n.cmd() == "section" && n.tokat(1) == "type") ;
-			else if (n.cmd() == "section" && n.tokat(1) == "dimglobal")
-				for (auto& d : n.list)
-					if (d.cmd() == "dim")  frames.back().vars[d.tokat(1)] = 0;
-		// run main function
+		// initialize in order
+		// for (const auto& n : prog.list)
+		// 	if      (n.cmd() == "type_defs") ;
+		// 	else if (n.cmd() == "dim_global") {
+		// 		for (auto& d : n.list)
+		// 			if (d.cmd() == "dim")  frames.back().vars[d.tokat(1)] = 0;
+		// 	}
+		// 	else if (n.cmd() == "setup")
+		// 		r_block_special(n);
+		// // run main function
+		// r_func("main", {});
+		// // teardown
+		// for (const auto& n : prog.list)
+		// 	if (n.cmd() == "teardown")
+		// 		r_block_special(n);
+
+		// initialize in order
+		findsection("type_defs");
+		for (auto& d : findsection("dim_global").list)
+			if (d.cmd() == "dim")  frames.back().vars[d.tokat(1)] = 0;
+		r_block_special(findsection("setup"));
 		r_func("main", {});
+		r_block_special(findsection("teardown"));
 	}
 
+	// find functions
+	const Node& findsection(const string& section) const {
+		for (const auto& n : prog.list)
+			if (n.cmd() == section)  return n;
+		error2("missing section: "+section);
+		throw DBRunError();
+	}
 	const Node& findfunc(const string& fname) const {
-		for (auto& n : prog.list)
-			if (n.cmd() == "section" && n.tokat(1) == "function")
-				for (auto& f : n.list)
-					if (f.cmd() == "function" && f.tokat(1) == fname)
-						return f;
+		for (auto& f : findsection("function_defs").list)
+			if (f.cmd() == "function" && f.tokat(1) == fname)
+				return f;
 		error2("missing function: "+fname);
 		throw DBRunError();
 	}
@@ -45,7 +69,7 @@ struct Runtime {
 					if (d.cmd() == "dim")  frames.back().vars[d.tokat(1)] = args.at(argc++);
 			}
 			// build local variables
-			else if (n.cmd() == "dimlocal") {
+			else if (n.cmd() == "dim_local") {
 				for (auto& d : n.list)
 					if (d.cmd() == "dim")  frames.back().vars[d.tokat(1)] = 0;
 			}
@@ -69,9 +93,35 @@ struct Runtime {
 		return r_func(fname, arglist);
 	}
 
+	void r_block_special(const Node& blk) {
+		for (auto& n : blk.list)
+			if      (n.tok == "setup")         ;  // ignore this
+			else if (n.tok == "teardown")      ;  // ignore
+			else if (n.cmd() == "malloc")      r_malloc(n.tokat(1), n.tokat(2), n.tokat(3));
+			else if (n.cmd() == "free")        r_free(n.tokat(1), n.tokat(2));
+			else    error2("special block error: "+n.cmd());
+	}
+
+	void r_malloc(const string& locality, const string& name, const string& type) {
+		heap[++heap_top] = { heap_top, type };
+		if      (locality == "global")  frames.front().vars.at(name) = heap_top;
+		else if (locality == "local")   frames.back().vars.at(name) = heap_top;
+		else    error2("malloc error");
+		printf("malloc:  %d \n", heap_top);
+	}
+
+	void r_free(const string& locality, const string& name) {
+		int32_t addr = 0;
+		if      (locality == "global")  addr = frames.front().vars.at(name);
+		else if (locality == "local")   addr = frames.back().vars.at(name);
+		if (addr <= 0 || !heap.count(addr))  error2("free error");
+		heap.erase(addr);
+		printf("free:  %d \n", addr);
+	}
+
 	void r_block(const Node& blk) {
 		// printf("block\n");
-		for (auto& n : blk.list) {
+		for (auto& n : blk.list)
 			if      (n.tok == "block")         ;  // ignore this
 			else if (n.cmd() == "print")       r_print(n);
 			else if (n.cmd() == "if")          r_if(n);
@@ -80,7 +130,6 @@ struct Runtime {
 			else if (n.cmd() == "call")        r_call(n);
 			else if (n.cmd() == "return")      r_return(n);
 			else    error2("block error: "+n.cmd());
-		}
 	}
 
 	void r_print(const Node& p) {

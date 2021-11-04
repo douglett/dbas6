@@ -39,21 +39,21 @@ struct Parser : InputFile {
 		teardown = Node::List();
 			setup.pushtoken("setup");
 			teardown.pushtoken("teardown");
-		p_section("type", prog);
-		p_section("dimglobal", prog);
+		p_section("type_defs", prog);
+		p_section("dim_global", prog);
 		prog.push(setup);
 		prog.push(teardown);
-		p_section("function", prog);
+		p_section("function_defs", prog);
 	}
 
 	void p_section(const string& section, Node& p) {
 		Node& nn = p.pushlist();
-		nn.pushtokens({ "section", section });
+		nn.pushtokens({ section });
 		while (!eof())
 			if      (expect("endl"))  nextline();
-			else if (section == "type"      && peek("'type"))      p_type(nn);
-			else if (section == "dimglobal" && peek("'dim"))       p_dim(nn);
-			else if (section == "function"  && peek("'function"))  p_function(nn);
+			else if (section == "type_defs"      && peek("'type"))      p_type(nn);
+			else if (section == "dim_global"     && peek("'dim"))       p_dim(nn);
+			else if (section == "function_defs"  && peek("'function"))  p_function(nn);
 			else    break;
 	}
 
@@ -97,16 +97,22 @@ struct Parser : InputFile {
 		else if (type == "float") ;
 		else {
 			if (type != "string")  error2("TODO: user types");
-			// setup
-			auto& n = setup.pushlist();
-				n.pushtokens({ cfuncname.length() ? "set_local" : "set_global" , name });
-			auto& m = n.pushlist();
-				m.pushtokens({ "malloc", "string" });  // temp
-			// teardown
-			auto& n2 = teardown.pushlist();
-				n2.pushtoken("free");
-			auto& m2 = n2.pushlist();
-				m2.pushtokens({ cfuncname.length() ? "get_local" : "get_global" , name });
+			// // setup
+			// auto& n = setup.pushlist();
+			// 	n.pushtokens({ cfuncname.length() ? "set_local" : "set_global" , name });
+			// auto& m = n.pushlist();
+			// 	m.pushtokens({ "malloc", "string" });  // temp
+			// // teardown
+			// auto& n2 = teardown.pushlist();
+			// 	n2.pushtoken("free");
+			// auto& m2 = n2.pushlist();
+			// 	m2.pushtokens({ cfuncname.length() ? "get_local" : "get_global" , name });
+			
+			// TODO: temp?
+			auto& m = setup.pushlist();
+				m.pushtokens({ "malloc", cfuncname.length() ? "local" : "global", name, type });
+			auto& f = teardown.pushlist();
+				f.pushtokens({ "free",   cfuncname.length() ? "local" : "global", name, type });
 		}
 		// end dim
 		nextline();
@@ -141,7 +147,7 @@ struct Parser : InputFile {
 		require("') endl"), nextline();
 		// local dims
 		auto& dims = fn.pushlist();
-			dims.pushtokens({ "dimlocal" });
+			dims.pushtokens({ "dim_local" });
 		while (!eof())
 			if      (expect("'endl")) ;
 			else if (peek("'dim"))  p_dim(dims);
