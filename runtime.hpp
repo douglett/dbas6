@@ -16,32 +16,6 @@ struct Runtime {
 	}
 
 
-	void r_prog() {
-		// initialize in order
-		// for (const auto& n : prog.list)
-		// 	if      (n.cmd() == "type_defs") ;
-		// 	else if (n.cmd() == "dim_global") {
-		// 		for (auto& d : n.list)
-		// 			if (d.cmd() == "dim")  frames.back().vars[d.tokat(1)] = 0;
-		// 	}
-		// 	else if (n.cmd() == "setup")
-		// 		r_block_special(n);
-		// // run main function
-		// r_func("main", {});
-		// // teardown
-		// for (const auto& n : prog.list)
-		// 	if (n.cmd() == "teardown")
-		// 		r_block_special(n);
-
-		// initialize in order
-		findsection("type_defs");
-		for (auto& d : findsection("dim_global").list)
-			if (d.cmd() == "dim")  frames.back().vars[d.tokat(1)] = 0;
-		r_block_special(findsection("setup"));
-		r_func("main", {});
-		r_block_special(findsection("teardown"));
-	}
-
 	// find functions
 	const Node& findsection(const string& section) const {
 		for (const auto& n : prog.list)
@@ -55,6 +29,42 @@ struct Runtime {
 				return f;
 		error2("missing function: "+fname);
 		throw DBRunError();
+	}
+
+
+	// special runtime functions
+	void r_malloc(const string& locality, const string& name, const string& type) {
+		heap[++heap_top] = { heap_top, type };
+		if      (locality == "global")  frames.front().vars.at(name) = heap_top;
+		else if (locality == "local")   frames.back().vars.at(name) = heap_top;
+		else    error2("malloc error");
+		printf("malloc:  %d \n", heap_top);
+	}
+	void r_free(const string& locality, const string& name) {
+		int32_t addr = 0;
+		if      (locality == "global")  addr = frames.front().vars.at(name);
+		else if (locality == "local")   addr = frames.back().vars.at(name);
+		if (addr <= 0 || !heap.count(addr))  error2("free error");
+		heap.erase(addr);
+		printf("free:  %d \n", addr);
+	}
+	string ptr_to_string(int32_t ptr) {
+		string s;
+		for (auto c : heap.at(ptr).data)
+			s += char(c);
+		return s;
+	}
+
+
+	// program blocks
+	void r_prog() {
+		// initialize in order
+		findsection("type_defs");
+		for (auto& d : findsection("dim_global").list)
+			if (d.cmd() == "dim")  frames.back().vars[d.tokat(1)] = 0;
+		r_block_special(findsection("setup"));
+		r_func("main", {});
+		r_block_special(findsection("teardown"));
 	}
 
 	int32_t r_func(const string& fname, vector<int32_t> args) {
@@ -102,41 +112,26 @@ struct Runtime {
 			else    error2("special block error: "+n.cmd());
 	}
 
-	void r_malloc(const string& locality, const string& name, const string& type) {
-		heap[++heap_top] = { heap_top, type };
-		if      (locality == "global")  frames.front().vars.at(name) = heap_top;
-		else if (locality == "local")   frames.back().vars.at(name) = heap_top;
-		else    error2("malloc error");
-		printf("malloc:  %d \n", heap_top);
-	}
-
-	void r_free(const string& locality, const string& name) {
-		int32_t addr = 0;
-		if      (locality == "global")  addr = frames.front().vars.at(name);
-		else if (locality == "local")   addr = frames.back().vars.at(name);
-		if (addr <= 0 || !heap.count(addr))  error2("free error");
-		heap.erase(addr);
-		printf("free:  %d \n", addr);
-	}
-
 	void r_block(const Node& blk) {
 		// printf("block\n");
 		for (auto& n : blk.list)
 			if      (n.tok == "block")         ;  // ignore this
 			else if (n.cmd() == "print")       r_print(n);
 			else if (n.cmd() == "if")          r_if(n);
-			else if (n.cmd() == "set_global")  r_let(n);
-			else if (n.cmd() == "set_local")   r_let(n);
 			else if (n.cmd() == "call")        r_call(n);
 			else if (n.cmd() == "return")      r_return(n);
+			else if (n.cmd() == "set_global")  r_let(n);
+			else if (n.cmd() == "set_local")   r_let(n);
+			else if (n.cmd() == "strcpy")      r_strcpy(n);
 			else    error2("block error: "+n.cmd());
 	}
 
 	void r_print(const Node& p) {
 		for (auto& n : p.list)
 			if      (n.tok == "print") ;
-			else if (n.type == NT_STRLITERAL)     printf("%s", n.tok.c_str());
-			else if (n.cmd() == "int_to_string")  printf("%d", r_expr(n.at(1)));
+			else if (n.type == NT_STRLITERAL)     printf("%s", n.tok.c_str() );
+			else if (n.cmd() == "int_to_string")  printf("%d", r_expr(n.at(1)) );
+			else if (n.cmd() == "ptr_to_string")  printf("%s", ptr_to_string(r_expr(n.at(1))).c_str() );
 			else    error2("print error");
 		printf("\n");
 	}
@@ -161,6 +156,27 @@ struct Runtime {
 		if      (n.cmd() == "set_global")  frames.front().vars.at(n.tokat(1)) = r_expr(n.at(2));
 		else if (n.cmd() == "set_local")   frames.back().vars.at(n.tokat(1))  = r_expr(n.at(2));
 		else    error2("let error");
+	}
+	
+	void r_strcpy(const Node& n) {
+		int32_t ptr = r_expr(n.at(1));
+		string s    = r_strexpr(n.at(2));
+		auto& data  = heap.at(ptr).data;
+		data.resize(s.length());
+		for (int i = 0; i < s.length(); i++)
+			data[i] = s[i];
+	}
+
+	string r_strexpr(const Node& n) {
+		string s;
+		if (n.cmd() == "strcat") {
+			for (auto& nn : n.list)
+				if      (nn.tok == "strcat") ;
+				else if (nn.type == NT_STRLITERAL)  s += nn.tok;
+				else    error2("strexpr error");
+		}
+		else  error2("strexpr error");
+		return s;
 	}
 
 	int32_t r_expr(const Node& n) {

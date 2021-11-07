@@ -173,6 +173,7 @@ struct Parser : InputFile {
 			else if (peek("'return"))  p_return(nn);
 			else if (peek("'if"))      p_if(nn);
 			else if (peek("'let"))     p_let(nn);
+			else if (peek("'lets"))    p_lets(nn);
 			else if (peek("'call"))    p_call(nn);
 			else    error();
 	}
@@ -190,7 +191,9 @@ struct Parser : InputFile {
 			else {
 				auto& ll = l.pushlist();
 					ll.pushtoken("int_to_string");
-					p_expr(ll);
+				auto t = p_atom_type();
+				if    (t == "string")  ll.at(0).tok = "ptr_to_string", p_varpath(ll);
+				else  p_expr(ll);
 			}
 		// l.push(Node::Literal("\n"));
 		require("endl"), nextline();
@@ -223,10 +226,42 @@ struct Parser : InputFile {
 
 	void p_let(Node& p) {
 		require("'let");
-		p_varpath_set(p);
+		auto t = p_varpath_set(p);
+		if (t != "int")  error();
 		auto& path = p.back();
 		require("'=");
 		p_expr(path), require("endl"), nextline();
+	}
+
+	// TODO: temp command
+	void p_lets(Node& p) {
+		require("'lets");
+		auto& cpy = p.pushlist();
+			cpy.pushtoken("strcpy");
+
+		// printf("here\n");
+
+		auto t = p_varpath(cpy);
+		// printf("here\n");
+		if (t != "string")  error();
+		
+		require("'=");
+
+		if    (require("@literal"))  cpy.push(Node::Literal(presults.at(0)));
+		else  p_varpath(cpy);
+
+		if (peek("'+")) {
+			auto lhs = cpy.pop();
+			auto& l  = cpy.pushlist();
+				l.pushtoken("strcat");
+				l.push(lhs);
+			// parse extras
+			while (expect("'+"))
+				if    (require("@literal"))  l.push(Node::Literal(presults.at(0)));
+				else  p_varpath(l);
+		}
+
+		require("endl"), nextline();
 	}
 
 	void p_call(Node& p) {
@@ -308,6 +343,19 @@ struct Parser : InputFile {
 		if (type != "int")  error();
 	}
 
+	string p_atom_type() {
+		if      (peek("identifier '("))  return "int";
+		else if (peek("@integer"))       return "int";
+		else if (peek("@literal"))       return "int";
+		else if (peek("identifier")) {
+			auto p = pos;
+			Node tmp(NT_LIST);
+			string t = p_varpath(tmp);
+			return pos = p, t;
+		}
+		else    return error(), "nil";
+	}
+
 	void p_expr_call(Node& p) {
 		require("@identifier '(");
 		auto fname = presults.at(0);
@@ -372,6 +420,12 @@ struct Parser : InputFile {
 		}
 		else  return error(), "nil";
 	}
+
+	// string expressions
+	// void p_strexpr(Node& p) {
+	// 	auto& l = p.pushlist();
+	// 	strcat
+	// }
 
 
 

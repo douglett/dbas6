@@ -39,4 +39,7 @@ function main()
 	call f(20)
 	let a = 10 + square(4)
 	print "inline call result:", a
+
+	lets b = "blah" + "_" + "flob"
+	print "[" b "]"
 end function

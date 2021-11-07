@@ -8,6 +8,10 @@ WIP basic (again)
 
 TODO:
 -----
+- strings 
+	- string pointer support
+	- string malloc / free
+	- basic string expressions in let
 - call statements
 	- argument type checking
 - varpath - difference between 'get' and 'set' paths
