@@ -109,10 +109,11 @@ struct Parser : InputFile {
 			// 	m2.pushtokens({ cfuncname.length() ? "get_local" : "get_global" , name });
 			
 			// TODO: temp?
+			string loc = cfuncname.length() ? "local" : "global";
 			auto& m = setup.pushlist();
-				m.pushtokens({ "malloc", cfuncname.length() ? "local" : "global", name, type });
+				m.pushtokens({ "malloc", loc, name, type });
 			auto& f = teardown.pushlist();
-				f.pushtokens({ "free",   cfuncname.length() ? "local" : "global", name, type });
+				f.pushtokens({ "free",   loc, name, type });
 		}
 		// end dim
 		nextline();
@@ -334,13 +335,14 @@ struct Parser : InputFile {
 		}
 	}
 	
-	void p_expr_atom(Node& p) {
+	string p_expr_atom(Node& p) {
 		string type;
-		if      (peek("identifier '("))  p_expr_call(p), type = "int";
+		if      (peek("identifier '("))  type = p_expr_call(p);
 		else if (peek("identifier"))     type = p_varpath(p);
 		else if (expect("@integer"))     p.pushtoken(presults.at(0)), type = "int";
 		else    error();
 		if (type != "int")  error();
+		return type;
 	}
 
 	string p_atom_type() {
@@ -356,7 +358,7 @@ struct Parser : InputFile {
 		else    return error(), "nil";
 	}
 
-	void p_expr_call(Node& p) {
+	string p_expr_call(Node& p) {
 		require("@identifier '(");
 		auto fname = presults.at(0);
 		auto& l = p.pushlist();
@@ -368,6 +370,7 @@ struct Parser : InputFile {
 		}
 		require("')");
 		if (functions[fname].args.size() != args.list.size())  error();
+		return "int";
 	}
 
 	string p_varpath(Node& p) {
