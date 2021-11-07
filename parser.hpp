@@ -228,9 +228,9 @@ struct Parser : InputFile {
 		require("'let");
 		auto t = p_varpath_set(p);
 		if (t != "int")  error();
-		auto& path = p.back();
+		auto& n = p.back();
 		require("'=");
-		p_expr(path), require("endl"), nextline();
+		p_expr(n), require("endl"), nextline();
 	}
 
 	// TODO: temp command
@@ -397,35 +397,13 @@ struct Parser : InputFile {
 	}
 
 	string p_varpath_set(Node& p) {
-		// SET variables (TODO: messy)
-		require("@identifier");
-		string name = presults.at(0);
-		auto& l = p.pushlist();
-		// local vars
-		if (cfuncname.length() && functions[cfuncname].args.count(name)) {
-			auto& d = functions[cfuncname].args[name];
-			l.pushtokens({ "set_local", d.name });
-			return d.type;
-		}
-		else if (cfuncname.length() && functions[cfuncname].locals.count(name)) {
-			auto& d = functions[cfuncname].locals[name];
-			l.pushtokens({ "set_local", d.name });
-			return d.type;
-		}
-		// global vars
-		else if (globals.count(name)) {
-			auto&d = globals[name];
-			l.pushtokens({ "set_global", d.name });
-			return d.type;
-		}
-		else  return error(), "nil";
+		auto t  = p_varpath(p);
+		auto& n = p.back();
+		if      (n.cmd() == "get_local")   n.at(0).tok = "set_local";
+		else if (n.cmd() == "get_global")  n.at(0).tok = "set_global";
+		else    error2("p_varpath_set");
+		return t;
 	}
-
-	// string expressions
-	// void p_strexpr(Node& p) {
-	// 	auto& l = p.pushlist();
-	// 	strcat
-	// }
 
 
 

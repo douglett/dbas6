@@ -153,8 +153,9 @@ struct Runtime {
 	}
 
 	void r_let(const Node& n) {
-		if      (n.cmd() == "set_global")  frames.front().vars.at(n.tokat(1)) = r_expr(n.at(2));
-		else if (n.cmd() == "set_local")   frames.back().vars.at(n.tokat(1))  = r_expr(n.at(2));
+		// format: cmd, varpath, vpath_type, expr
+		if      (n.cmd() == "set_global")  frames.front().vars.at(n.tokat(1)) = r_expr(n.at(3));
+		else if (n.cmd() == "set_local")   frames.back().vars.at(n.tokat(1))  = r_expr(n.at(3));
 		else    error2("let error");
 	}
 	
