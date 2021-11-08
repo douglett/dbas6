@@ -34,7 +34,7 @@ function main()
 
 	# call test_ret(0)
 
-	if test_ret(1) && test_ret(1) && 0
+	if test_ret(1) && test_ret(1) && false
 	else if test_ret(2) || test_ret(2)
 	end if
 end function

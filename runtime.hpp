@@ -208,7 +208,11 @@ struct Runtime {
 		else if (n.cmd() == "or")          return r_expr(n.at(1)) || r_expr(n.at(2));
 		else if (n.cmd() == "and")         return r_expr(n.at(1)) && r_expr(n.at(2));
 		else if (n.cmd() == "comp==")      return r_expr(n.at(1)) == r_expr(n.at(2));
+		else if (n.cmd() == "comp!=")      return r_expr(n.at(1)) != r_expr(n.at(2));
 		else if (n.cmd() == "comp<")       return r_expr(n.at(1)) <  r_expr(n.at(2));
+		else if (n.cmd() == "comp>")       return r_expr(n.at(1)) >  r_expr(n.at(2));
+		else if (n.cmd() == "comp<=")      return r_expr(n.at(1)) <= r_expr(n.at(2));
+		else if (n.cmd() == "comp>=")      return r_expr(n.at(1)) >= r_expr(n.at(2));
 		else if (n.cmd() == "add")         return r_expr(n.at(1)) +  r_expr(n.at(2));
 		else if (n.cmd() == "sub")         return r_expr(n.at(1)) -  r_expr(n.at(2));
 		else if (n.cmd() == "mul")         return r_expr(n.at(1)) *  r_expr(n.at(2));

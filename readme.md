@@ -18,6 +18,7 @@ TODO:
 - auto malloc / free
 	- user type automalloc
 	- arrmalloc
+- for loops
 - function hoisting
 
 DONE:
