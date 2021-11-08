@@ -3,6 +3,7 @@
 function main()
 	dim string a
 	dim i
+	dim j
 	let a = "butt" + "poop" + "y"
 	print "here", a
 
@@ -12,13 +13,27 @@ function main()
 		print "No"
 	end if
 
-	while i < 10
+	while i < 3
 		let i = i + 1
-		if i == 9
-			break
-		else if i == 3
-			continue
-		end if
-		print "i is " i
+		while j < 3
+			let j = j + 1
+			print "i", i; "j", j
+			if i == 2 && j == 2
+				break 2
+			end if
+		end while
+		let j = 0
 	end while
+
+	print "the end"
+
+	# call testret()
+	
+	# if testret() && testret()
+	# else if testret() || testret()
+	# end if
 end function
+
+# function testret()
+# 	print "test"
+# end function

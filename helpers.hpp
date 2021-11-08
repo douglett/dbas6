@@ -31,9 +31,14 @@ struct DBRunError : DBError {
 };
 struct DBCtrl : std::exception { };
 struct DBCtrlReturn : DBCtrl { };
-struct DBCtrlBreak : DBCtrl { };
-struct DBCtrlContinue : DBCtrl { };
-
+struct DBCtrlBreak : DBCtrl {
+	int level;
+	DBCtrlBreak(int lv) : level(lv) { }
+};
+struct DBCtrlContinue : DBCtrl {
+	int level;
+	DBCtrlContinue(int lv) : level(lv) { }
+};
 
 
 // ----------------------------------------
@@ -110,6 +115,7 @@ struct Node {
 	Node& pushlist() { return push( Node::List() ); }
 	Node& pushcmdlist(const string& t) { return push( Node::CmdList(t) ); }
 	Node& pushliteral(const string& lit) { return push( Node::Literal(lit) ); }
+	Node& pushint(int32_t i) { return push( Node::Integer(i) ); }
 	Node& pushint(const string& istr) { return push( Node::Integer(istr) ); }
 	Node& pushtoken(const string& t) { return push( Node::Token(t) ); }
 	void  pushtokens(const vector<string>& toklist) {

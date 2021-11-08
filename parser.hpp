@@ -28,7 +28,7 @@ struct Parser : InputFile {
 	map<string, Prog::Dim>  globals;
 	map<string, Prog::Func> functions;
 	string cfuncname, ctypename;
-	int flag_while = 0;
+	int flag_while = 0;  // parse flags
 
 
 	// --- Program structure parsing ---
@@ -194,33 +194,38 @@ struct Parser : InputFile {
 	void p_break(Node& p) {
 		require("'break");
 		if (!flag_while)  error2("p_break");
-		// auto& l = p.pushcmdlist("break");
-		p.pushcmdlist("break");
-		// if    (expect("endl"))  l.pushtoken("0");
-		// else  p_intexpr(l);
+		auto& l = p.pushcmdlist("break");
+		if (expect("@integer")) {
+			int i = stoi(presults.at(0));  // specified break level
+			if (i < 1 || i > flag_while)  error2("break level");
+			l.pushint(i);
+		}
+		else  l.pushint(1);  // default break level (1)
 		require("endl"), nextline();
 	}
 
 	void p_continue(Node& p) {
 		require("'continue");
 		if (!flag_while)  error2("p_continue");
-		p.pushcmdlist("continue");
+		auto& l = p.pushcmdlist("continue");
+		if (expect("@integer")) {
+			int i = stoi(presults.at(0));  // specified continue level
+			if (i < 1 || i > flag_while)  error2("continue level");
+			l.pushint(i);
+		}
+		else  l.pushint(1);  // default continue level (1)
 		require("endl"), nextline();
 	}
 
 	void p_if(Node& p) {
 		require("'if");
 		auto& l = p.pushcmdlist("if");
-		// first comparison
-		p_intexpr(l), require("endl"), nextline(), p_block(l);
-		// else-if statements
+		p_intexpr(l), require("endl"), nextline(), p_block(l);  // first comparison
 		if (expect("'else 'if"))
-			p_intexpr(l), require("endl"), nextline(), p_block(l);
-		// last else
+			p_intexpr(l), require("endl"), nextline(), p_block(l);  // else-if statements
 		if (expect("'else endl"))
-			l.pushtoken("true"), nextline(), p_block(l);
-		// block end
-		require("'end 'if endl"), nextline();
+			l.pushtoken("true"), nextline(), p_block(l);  // last else
+		require("'end 'if endl"), nextline();  // block end
 	}
 
 	void p_while(Node& p) {
@@ -343,19 +348,6 @@ struct Parser : InputFile {
 		else if (expect("@literal"))     return p.pushliteral(presults.at(0)), "string";
 		else    return error2("p_expr_atom"), "nil";
 	}
-
-	// string p_atom_type() {
-	// 	if      (peek("identifier '("))  return "int";
-	// 	else if (peek("@integer"))       return "int";
-	// 	else if (peek("@literal"))       return "int";
-	// 	else if (peek("identifier")) {
-	// 		auto p = pos;
-	// 		Node tmp(NT_LIST);
-	// 		string t = p_varpath(tmp);
-	// 		return pos = p, t;
-	// 	}
-	// 	else    return error(), "nil";
-	// }
 
 	string p_expr_call(Node& p) {
 		require("@identifier '(");

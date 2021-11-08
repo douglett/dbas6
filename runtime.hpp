@@ -10,6 +10,7 @@ struct Runtime {
 	vector<StackFrame> frames;
 	map<int32_t, HeapObject> heap;
 	int32_t heap_top = 0;
+	int32_t flag_while = 0;  // runtime flags
 
 	Runtime(const Node& _prog) : prog(_prog) {
 		frames = { {} };
@@ -150,10 +151,10 @@ struct Runtime {
 		throw DBCtrlReturn();
 	}
 	void r_break(const Node& n) {
-		throw DBCtrlBreak();
+		throw DBCtrlBreak( n.at(1).i );
 	}
 	void r_continue(const Node& n) {
-		throw DBCtrlContinue();
+		throw DBCtrlContinue( n.at(1).i );
 	}
 	void r_if(const Node& n) {
 		for (int i = 1; i < n.list.size(); i += 2)
@@ -163,10 +164,14 @@ struct Runtime {
 			}
 	}
 	void r_while(const Node& n) {
+		flag_while++;
+		// printf("fw %d\n", flag_while);
 		while (r_expr( n.at(1) ))
-			try   { r_block( n.at(2) ); }
-			catch (DBCtrlBreak b)    { break; }
-			catch (DBCtrlContinue c) { continue; }
+			try                      { r_block( n.at(2) ); }
+			catch (DBCtrlBreak b)    { if (--b.level > 0)  throw b;  break; }
+			catch (DBCtrlContinue c) { if (--c.level > 0)  throw c;  continue; }
+		flag_while--;
+		// printf("fw %d\n", flag_while);
 	}
 
 
@@ -200,16 +205,18 @@ struct Runtime {
 		if      (n.tok == "true")          return 1;
 		else if (n.tok == "false")         return 0;
 		else if (n.type == NT_INTEGER)     return n.i;
+		else if (n.cmd() == "or")          return r_expr(n.at(1)) || r_expr(n.at(2));
+		else if (n.cmd() == "and")         return r_expr(n.at(1)) && r_expr(n.at(2));
 		else if (n.cmd() == "comp==")      return r_expr(n.at(1)) == r_expr(n.at(2));
 		else if (n.cmd() == "comp<")       return r_expr(n.at(1)) <  r_expr(n.at(2));
-		else if (n.cmd() == "strcmp")      return r_strexpr(n.at(1)) == r_strexpr(n.at(2));
-		else if (n.cmd() == "strncmp")     return r_strexpr(n.at(1)) != r_strexpr(n.at(2));
 		else if (n.cmd() == "add")         return r_expr(n.at(1)) +  r_expr(n.at(2));
 		else if (n.cmd() == "sub")         return r_expr(n.at(1)) -  r_expr(n.at(2));
 		else if (n.cmd() == "mul")         return r_expr(n.at(1)) *  r_expr(n.at(2));
 		else if (n.cmd() == "div")         return r_expr(n.at(1)) /  r_expr(n.at(2));
 		else if (n.cmd() == "get_global")  return frames.front().vars.at(n.tokat(1));
 		else if (n.cmd() == "get_local")   return frames.back().vars.at(n.tokat(1));
+		else if (n.cmd() == "strcmp")      return r_strexpr(n.at(1)) == r_strexpr(n.at(2));
+		else if (n.cmd() == "strncmp")     return r_strexpr(n.at(1)) != r_strexpr(n.at(2));
 		else if (n.cmd() == "call")        return r_call(n);
 
 		printf(">> expr error\n"), n.show();
