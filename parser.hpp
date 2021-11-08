@@ -33,12 +33,9 @@ struct Parser : InputFile {
 	// --- Program structure parsing ---
 
 	void p_program() {
-		prog = Node::List();
-			prog.pushtoken("program");
-		setup = teardown = Node::List();
-		teardown = Node::List();
-			setup.pushtoken("setup");
-			teardown.pushtoken("teardown");
+		prog     = Node::CmdList("program");
+		setup    = Node::CmdList("setup");
+		teardown = Node::CmdList("teardown");
 		p_section("type_defs", prog);
 		p_section("dim_global", prog);
 		prog.push(setup);
@@ -47,23 +44,22 @@ struct Parser : InputFile {
 	}
 
 	void p_section(const string& section, Node& p) {
-		Node& nn = p.pushlist();
-		nn.pushtokens({ section });
+		Node& l = p.pushcmdlist(section);
 		while (!eof())
 			if      (expect("endl"))  nextline();
-			else if (section == "type_defs"      && peek("'type"))      p_type(nn);
-			else if (section == "dim_global"     && peek("'dim"))       p_dim(nn);
-			else if (section == "function_defs"  && peek("'function"))  p_function(nn);
+			else if (section == "type_defs"      && peek("'type"))      p_type(l);
+			else if (section == "dim_global"     && peek("'dim"))       p_dim(l);
+			else if (section == "function_defs"  && peek("'function"))  p_function(l);
 			else    break;
 	}
 
 	void p_type(Node& p) {
 		require("'type @identifier endl");
 		namecollision(presults.at(0));
-			ctypename = presults.at(0);
+			ctypename        = presults.at(0);
 			types[ctypename] = { ctypename };
-		Node& nn = p.pushlist();
-			nn.pushtokens({ "type", ctypename });
+		auto& l = p.pushlist();
+			l.pushtokens({ "type", ctypename });
 		nextline();
 		// type members
 		while (!eof()) {
@@ -72,10 +68,10 @@ struct Parser : InputFile {
 			else if (expect("'dim @identifier @identifier endl"))  name = presults.at(1), type = presults.at(0);
 			else if (expect("'dim @identifier endl"))  name = presults.at(0), type = "int";
 			else    break;
-			if (type == "integer")  type = "int";
+			if (type == "integer")  type = "int";  // normalize type name
 				typecheck(type), namecollision(name);
 				types.at(ctypename).members[name] = { name, type };  // save type member
-			nn.pushlist().pushtokens({ "dim", name, type });
+			l.pushlist().pushtokens({ "dim", name, type });
 			nextline();
 		}
 		// end type
@@ -87,34 +83,24 @@ struct Parser : InputFile {
 		string name, type;
 		if      (expect("'dim @identifier @identifier endl"))  name = presults.at(1), type = presults.at(0);
 		else if (require("'dim @identifier endl"))  name = presults.at(0), type = "int";
-		if (type == "integer")  type = "int";
+		if (type == "integer")  type = "int";  // normalize type name
 			typecheck(type), namecollision(name);
 			if    (!cfuncname.length())  globals[name] = { name, type };
 			else  functions.at(cfuncname).locals[name] = { name, type };
 		p.pushlist().pushtokens({ "dim", name, type });
+		
 		// TODO: cleanup
 		if      (type == "int") ;
 		else if (type == "float") ;
 		else {
 			if (type != "string")  error2("TODO: user types");
-			// // setup
-			// auto& n = setup.pushlist();
-			// 	n.pushtokens({ cfuncname.length() ? "set_local" : "set_global" , name });
-			// auto& m = n.pushlist();
-			// 	m.pushtokens({ "malloc", "string" });  // temp
-			// // teardown
-			// auto& n2 = teardown.pushlist();
-			// 	n2.pushtoken("free");
-			// auto& m2 = n2.pushlist();
-			// 	m2.pushtokens({ cfuncname.length() ? "get_local" : "get_global" , name });
-			
-			// TODO: temp?
 			string loc = cfuncname.length() ? "local" : "global";
-			auto& m = setup.pushlist();
-				m.pushtokens({ "malloc", loc, name, type });
-			auto& f = teardown.pushlist();
-				f.pushtokens({ "free",   loc, name, type });
+			auto& ma = setup.pushlist();
+				ma.pushtokens({ "malloc", loc, name, type });
+			auto& fr = teardown.pushlist();
+				fr.pushtokens({ "free",   loc, name, type });
 		}
+
 		// end dim
 		nextline();
 	}
@@ -122,24 +108,21 @@ struct Parser : InputFile {
 	void p_function(Node& p) {
 		require("'function @identifier '(");
 		namecollision(presults.at(0));
-			cfuncname = presults.at(0);
+			cfuncname            = presults.at(0);
 			functions[cfuncname] = { cfuncname };
 		// set up structure
 		auto& fn = p.pushlist();
 			fn.pushtokens({ "function", cfuncname });
-		setup = teardown = Node::List();
-			setup.pushtoken("setup");
-			teardown.pushtoken("teardown");
+		setup    = Node::CmdList("setup");
+		teardown = Node::CmdList("teardown");
 		// arguments
-		auto& args = fn.pushlist();
-			args.pushtoken("args");
+		auto& args = fn.pushcmdlist("args");
 		while (!eol()) {
 			string name, type;
 			if (!expect("@identifier @identifier"))  break;
 			name = presults.at(1), type = presults.at(0);
 			if (type != "int")  error2("TODO: non-int types");
 				typecheck(type), namecollision(name);
-				// if (functions[cfuncname].args.count(name))  error();  // additional name collision
 				functions[cfuncname].args[name] = { name, type };  // save argument
 				args.pushlist().pushtokens({ "dim", name, type });
 			if (peek("')"))  break;
@@ -147,8 +130,7 @@ struct Parser : InputFile {
 		}
 		require("') endl"), nextline();
 		// local dims
-		auto& dims = fn.pushlist();
-			dims.pushtokens({ "dim_local" });
+		auto& dims = fn.pushcmdlist("dim_local");
 		while (!eof())
 			if      (expect("'endl")) ;
 			else if (peek("'dim"))  p_dim(dims);
@@ -163,34 +145,32 @@ struct Parser : InputFile {
 	}
 
 	void p_block(Node& p) {
-		auto& nn = p.pushlist();
-			nn.pushtoken("block");
+		auto& l = p.pushcmdlist("block");
 		while (!eof())
 			if      (expect("endl"))   nextline();  // empty line
 			else if (peek("'end"))     break;  // block end statement
 			else if (peek("'else"))    break;  // block end statement
-			else if (peek("'print"))   p_print(nn);
+			else if (peek("'print"))   p_print(l);
 			// else if (peek("'input"))   p_input();
-			else if (peek("'return"))  p_return(nn);
-			else if (peek("'if"))      p_if(nn);
-			else if (peek("'let"))     p_let(nn);
-			else if (peek("'call"))    p_call(nn);
+			else if (peek("'return"))  p_return(l);
+			else if (peek("'if"))      p_if(l);
+			else if (peek("'let"))     p_let(l);
+			else if (peek("'call"))    p_call(l);
 			else    error();
 	}
 
 	void p_print(Node& p) {
 		require("'print");
-		auto& l = p.pushlist();
-			l.pushtoken("print");
+		auto& l = p.pushcmdlist("print");
 		while (!eol())
 			if      (peek("endl"))  break;
 			else if (expect("',"))  l.pushliteral(" ");
 			else if (expect("';"))  l.pushliteral("\t");
 			else {
-				auto& ll = l.pushcmdlist("int_expr");
-				auto  t  = p_anyexpr(ll);
+				auto& ex = l.pushcmdlist("int_expr");
+				auto  t  = p_anyexpr(ex);
 				if      (t == "int") ;
-				else if (t == "string")  ll.at(0).tok = "string_expr";
+				else if (t == "string")  ex.at(0).tok = "string_expr";
 				else    error2("p_print");
 			}
 		// l.pushliteral("\n");
@@ -199,8 +179,7 @@ struct Parser : InputFile {
 
 	void p_return(Node& p) {
 		require("'return");
-		auto& l = p.pushlist();
-			l.pushtoken("return");
+		auto& l = p.pushcmdlist("return");
 		if    (expect("endl"))  l.pushtoken("0");
 		else  p_intexpr(l);
 		require("endl"), nextline();
@@ -226,14 +205,14 @@ struct Parser : InputFile {
 		auto t = p_varpath_set(p);
 		require("'=");
 		if (t == "int") {
-			auto& n = p.back();
-			p_intexpr(n), require("endl"), nextline();
+			auto& l = p.back();
+			p_intexpr(l), require("endl"), nextline();
 		}
 		else if (t == "string") {
 			auto  lhs = p.pop();
-			auto& n   = p.pushcmdlist("strcpy");
-			n.push(lhs);
-			p_strexpr(n), require("endl"), nextline();
+			auto& l   = p.pushcmdlist("strcpy");
+			l.push(lhs);
+			p_strexpr(l), require("endl"), nextline();
 		}
 		else  error();
 	}
@@ -248,11 +227,8 @@ struct Parser : InputFile {
 
 	// --- Expressions --- 
 
-	void   p_intexpr(Node& p) { p_expr_or(p) == "int" || error(); }
-	void   p_strexpr(Node& p) {
-		p_expr_or(p) == "string" || error2("p_strexpr"); 
-		// p_expr_or(p);
-	}
+	void   p_intexpr(Node& p) { p_expr_or(p) == "int"    || error2("p_intexpr"); }
+	void   p_strexpr(Node& p) { p_expr_or(p) == "string" || error2("p_strexpr"); }
 	string p_anyexpr(Node& p) { return p_expr_or(p); }
 
 	string p_expr_or(Node& p) {
@@ -387,10 +363,10 @@ struct Parser : InputFile {
 
 	string p_varpath_set(Node& p) {
 		auto t  = p_varpath(p);
-		auto& n = p.back();
+		auto& l = p.back();
 		if      (t == "string") ;
-		else if (n.cmd() == "get_local")   n.at(0).tok = "set_local";
-		else if (n.cmd() == "get_global")  n.at(0).tok = "set_global";
+		else if (l.cmd() == "get_local")   l.at(0).tok = "set_local";
+		else if (l.cmd() == "get_global")  l.at(0).tok = "set_global";
 		else    error2("p_varpath_set");
 		return t;
 	}
