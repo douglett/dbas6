@@ -17,7 +17,8 @@ TODO:
 	- argument type checking
 - auto malloc / free
 	- user type automalloc
-	- arrmalloc 
+	- arrmalloc
+- function hoisting
 
 DONE:
 -----

@@ -1,5 +1,10 @@
 # dim string a
 
+function test_ret(int n)
+	print "test", n
+	return 1
+end function
+
 function main()
 	dim string a
 	dim i
@@ -27,13 +32,9 @@ function main()
 
 	print "the end"
 
-	# call testret()
-	
-	# if testret() && testret()
-	# else if testret() || testret()
-	# end if
-end function
+	# call test_ret(0)
 
-# function testret()
-# 	print "test"
-# end function
+	if test_ret(1) && test_ret(1) && 0
+	else if test_ret(2) || test_ret(2)
+	end if
+end function

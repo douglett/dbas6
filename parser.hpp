@@ -126,7 +126,7 @@ struct Parser : InputFile {
 			name = presults.at(1), type = presults.at(0);
 			if (type != "int")  error2("TODO: non-int types");
 				typecheck(type), namecollision(name);
-				functions[cfuncname].args[name] = { name, type };  // save argument
+				functions.at(cfuncname).args[name] = { name, type };  // save argument
 				args.pushlist().pushtokens({ "dim", name, type });
 			if (peek("')"))  break;
 			require("',");
@@ -352,6 +352,7 @@ struct Parser : InputFile {
 	string p_expr_call(Node& p) {
 		require("@identifier '(");
 		auto fname = presults.at(0);
+		if (!functions.count(fname))  error2("missing function");
 		auto& l = p.pushlist();
 			l.pushtokens({ "call", fname });
 		auto& args = l.pushlist();
@@ -360,7 +361,7 @@ struct Parser : InputFile {
 			if (!expect("',"))  break;
 		}
 		require("')");
-		if (functions[fname].args.size() != args.list.size())  error();
+		if (functions.at(fname).args.size() != args.list.size())  error();
 		return "int";
 	}
 
@@ -371,13 +372,13 @@ struct Parser : InputFile {
 		auto& l = p.pushlist();
 			// l.pushtoken("varpath");
 		// local vars
-		if (cfuncname.length() && functions[cfuncname].args.count(name)) {
-			auto& d = functions[cfuncname].args[name];
+		if (cfuncname.length() && functions.at(cfuncname).args.count(name)) {
+			auto& d = functions.at(cfuncname).args[name];
 			l.pushtokens({ "get_local", d.name, d.type });
 			return d.type;
 		}
-		else if (cfuncname.length() && functions[cfuncname].locals.count(name)) {
-			auto& d = functions[cfuncname].locals[name];
+		else if (cfuncname.length() && functions.at(cfuncname).locals.count(name)) {
+			auto& d = functions.at(cfuncname).locals[name];
 			l.pushtokens({ "get_local", d.name, d.type });
 			return d.type;
 		}
