@@ -37,6 +37,7 @@ DONE:
 	- string malloc / free
 	- basic string expressions in let
 - string auto malloc / free
+	- circular includes
 	- malloc format
 	- global malloc block
 	- global free block

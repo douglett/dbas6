@@ -429,6 +429,7 @@ struct Parser : InputFile {
 	}
 	void typecheck(const string& type) {
 		if (type != "int" && type != "string" && types.count(type) == 0)  error();
+		if (ctypename == type)  error2("typecheck; circular definition");
 	}
 	void namecollision(const string& name) {
 		// defined language collisions
