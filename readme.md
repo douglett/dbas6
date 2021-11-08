@@ -13,8 +13,8 @@ TODO:
 	- continue
 - strings 
 	- proper string expressions
-	- string addition (cat)
-	- string equality
+	- string addition (strcat)
+	- string equality (strcmp / strncmp)
 - varpath
 	- cleanup
 	- arrays

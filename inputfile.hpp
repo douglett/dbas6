@@ -55,6 +55,7 @@ struct InputPattern {
 				ismatch = 0;
 				if      (p.pattern == "eol")         ismatch = pos >= tokens.size();
 				else if (p.pattern == "endl")        ismatch = pos >= tokens.size() || tokens[pos][0] == '#';
+				// else if (p.pattern == "eof")         ismatch = pos >= tokens.size();
 				else if (pos >= tokens.size())       ismatch = 0;
 				else if (p.pattern == "comment")     ismatch = tokens[pos][0] == '#';
 				else if (p.pattern == "identifier")  ismatch = is_identifier(tokens[pos]);
@@ -71,16 +72,17 @@ struct InputPattern {
 		return pattlist.size();
 	}
 
-	int matchrule(const vector<string>& tokens, int pos, const SubPattern& p) {
-		if      (p.pattern == "eol")         return pos >= tokens.size();
-		else if (p.pattern == "endl")        return pos >= tokens.size() || tokens[pos][0] == '#';
-		else if (pos >= tokens.size())       return 0;
-		else if (p.pattern == "comment")     return tokens[pos][0] == '#';
-		else if (p.pattern == "identifier")  return is_identifier(tokens[pos]);
-		else if (p.pattern == "integer")     return is_integer(tokens[pos]);
-		else if (p.pattern == "literal")     return tokens[pos].size() >= 2 && tokens[pos][0] == '"' && tokens[pos].back() == '"';
-		else    return assert("Pattern::match > unknown pattern" == NULL), 0;
-	}
+	// int matchrule(const vector<string>& tokens, int pos, const SubPattern& p) {
+	// 	if      (p.pattern == "eol")         return pos >= tokens.size();
+	// 	else if (p.pattern == "endl")        return pos >= tokens.size() || tokens[pos][0] == '#';
+	// 	else if (p.pattern == "eof")         return pos >= tokens.size();
+	// 	else if (pos >= tokens.size())       return 0;
+	// 	else if (p.pattern == "comment")     return tokens[pos][0] == '#';
+	// 	else if (p.pattern == "identifier")  return is_identifier(tokens[pos]);
+	// 	else if (p.pattern == "integer")     return is_integer(tokens[pos]);
+	// 	else if (p.pattern == "literal")     return tokens[pos].size() >= 2 && tokens[pos][0] == '"' && tokens[pos].back() == '"';
+	// 	else    return assert("Pattern::match > unknown pattern" == NULL), 0;
+	// }
 };
 
 

@@ -183,6 +183,8 @@ struct Runtime {
 		else if (n.tok == "false")         return 0;
 		else if (is_integer(n.tok))        return stoi(n.tok);
 		else if (n.cmd() == "comp==")      return r_expr(n.at(1)) == r_expr(n.at(2));
+		else if (n.cmd() == "strcmp")      return r_strexpr(n.at(1)) == r_strexpr(n.at(2));
+		else if (n.cmd() == "strncmp")     return r_strexpr(n.at(1)) != r_strexpr(n.at(2));
 		else if (n.cmd() == "add")         return r_expr(n.at(1)) +  r_expr(n.at(2));
 		else if (n.cmd() == "sub")         return r_expr(n.at(1)) -  r_expr(n.at(2));
 		else if (n.cmd() == "mul")         return r_expr(n.at(1)) *  r_expr(n.at(2));

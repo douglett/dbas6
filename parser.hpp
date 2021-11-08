@@ -41,6 +41,7 @@ struct Parser : InputFile {
 		prog.push(setup);
 		prog.push(teardown);
 		p_section("function_defs", prog);
+		if (!eol())  error2("p_program");
 	}
 
 	void p_section(const string& section, Node& p) {
@@ -263,10 +264,14 @@ struct Parser : InputFile {
 			string op = presults.at(0) + (presults.size() > 1 ? presults.at(1) : "");
 			auto lhs = p.pop();
 			auto& l  = p.pushlist();
-				l.pushtoken("comp"+op);
-				l.push(lhs);
+			if      (t == "int")  l.pushtoken("comp"+op);
+			else if (t == "string" && op == "==")  l.pushtoken("strcmp");
+			else if (t == "string" && op == "!=")  l.pushtoken("strncmp");
+			else    error();
+			l.push(lhs);  // reappend lhs
 			auto u = p_expr_add(l);  // parse rhs
-			if (t != "int" || t != u)  error();
+			if (t != u)  error();
+			return "int";
 		}
 		return t;
 	}
