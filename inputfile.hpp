@@ -165,6 +165,10 @@ struct InputFile {
 		return tokenizeline();
 	}
 
+	string currenttoken() const {
+		return eol() ? "<EOL>" : tokens.at(pos);
+	}
+
 
 	// helpers
 	int eol() const { return pos >= tokens.size(); }

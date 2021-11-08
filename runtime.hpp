@@ -120,8 +120,8 @@ struct Runtime {
 			else if (n.cmd() == "if")          r_if(n);
 			else if (n.cmd() == "call")        r_call(n);
 			else if (n.cmd() == "return")      r_return(n);
-			else if (n.cmd() == "set_global")  r_let(n);
-			else if (n.cmd() == "set_local")   r_let(n);
+			else if (n.cmd() == "set_global")  r_set(n);
+			else if (n.cmd() == "set_local")   r_set(n);
 			else if (n.cmd() == "strcpy")      r_strcpy(n);
 			else    error2("block error: "+n.cmd());
 	}
@@ -152,7 +152,7 @@ struct Runtime {
 		throw DBCtrlReturn();
 	}
 
-	void r_let(const Node& n) {
+	void r_set(const Node& n) {
 		// format: cmd, varpath, vpath_type, expr
 		if      (n.cmd() == "set_global")  frames.front().vars.at(n.tokat(1)) = r_expr(n.at(3));
 		else if (n.cmd() == "set_local")   frames.back().vars.at(n.tokat(1))  = r_expr(n.at(3));

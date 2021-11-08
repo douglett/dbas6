@@ -174,7 +174,6 @@ struct Parser : InputFile {
 			else if (peek("'return"))  p_return(nn);
 			else if (peek("'if"))      p_if(nn);
 			else if (peek("'let"))     p_let(nn);
-			else if (peek("'lets"))    p_lets(nn);
 			else if (peek("'call"))    p_call(nn);
 			else    error();
 	}
@@ -227,38 +226,18 @@ struct Parser : InputFile {
 	void p_let(Node& p) {
 		require("'let");
 		auto t = p_varpath_set(p);
-		if (t != "int")  error();
-		auto& n = p.back();
 		require("'=");
-		p_intexpr(n), require("endl"), nextline();
-	}
-
-	// TODO: temp command
-	void p_lets(Node& p) {
-		require("'lets");
-		auto& cpy = p.pushcmdlist("strcpy");
-		auto t = p_varpath(cpy);
-		if (t != "string")  error();		
-		require("'=");
-
-		// if    (require("@literal"))  cpy.pushliteral(presults.at(0));
-		// else  p_varpath(cpy);
-
-		// printf("here1\n");
-		p_strexpr(cpy);
-
-		// if (peek("'+")) {
-		// 	auto lhs = cpy.pop();
-		// 	auto& l  = cpy.pushlist();
-		// 		l.pushtoken("strcat");
-		// 		l.push(lhs);
-		// 	// parse extras
-		// 	while (expect("'+"))
-		// 		if    (require("@literal"))  l.pushliteral(presults.at(0));
-		// 		else  p_varpath(l);
-		// }
-
-		require("endl"), nextline();
+		if (t == "int") {
+			auto& n = p.back();
+			p_intexpr(n), require("endl"), nextline();
+		}
+		else if (t == "string") {
+			auto  lhs = p.pop();
+			auto& n   = p.pushcmdlist("strcpy");
+			n.push(lhs);
+			p_strexpr(n), require("endl"), nextline();
+		}
+		else  error();
 	}
 
 	void p_call(Node& p) {
@@ -273,7 +252,7 @@ struct Parser : InputFile {
 
 	void   p_intexpr(Node& p) { p_expr_or(p) == "int" || error(); }
 	void   p_strexpr(Node& p) {
-		p_expr_or(p) == "string" || error(); 
+		p_expr_or(p) == "string" || error2("p_strexpr"); 
 		// p_expr_or(p);
 	}
 	string p_anyexpr(Node& p) { return p_expr_or(p); }
@@ -352,8 +331,7 @@ struct Parser : InputFile {
 		else if (peek("identifier"))     type = p_varpath(p);
 		else if (expect("@integer"))     p.pushtoken(presults.at(0)), type = "int";
 		else if (expect("@literal"))     p.pushliteral(presults.at(0)), type = "string";
-		else    error();
-		// if (type != "int")  error();
+		else    error2("p_expr_atom");
 		return type;
 	}
 
@@ -414,7 +392,8 @@ struct Parser : InputFile {
 	string p_varpath_set(Node& p) {
 		auto t  = p_varpath(p);
 		auto& n = p.back();
-		if      (n.cmd() == "get_local")   n.at(0).tok = "set_local";
+		if      (t == "string") ;
+		else if (n.cmd() == "get_local")   n.at(0).tok = "set_local";
 		else if (n.cmd() == "get_global")  n.at(0).tok = "set_global";
 		else    error2("p_varpath_set");
 		return t;
@@ -436,11 +415,11 @@ struct Parser : InputFile {
 
 	// helpers
 	int error() {
-		throw DBParseError(lno);
+		throw DBParseError(lno, currenttoken());
 	}
 	int error2(const string& msg) {
 		// Temporary WIP parser errors
-		DBParseError d(lno);
+		DBParseError d(lno, currenttoken());
 		d.error_string += " :: " + msg;
 		throw d;
 	}

@@ -19,9 +19,9 @@ struct DBError : std::exception {
 	}
 };
 struct DBParseError : DBError {
-	int lno;
-	DBParseError(int _lno) : lno(_lno) {
-		error_string = "DougBasic Syntax error, line " + to_string(lno+1);
+	DBParseError(int lno, const string& ctok) {
+		error_string = "DougBasic Syntax error, line " + to_string(lno+1)
+			+ ", at token '" + ctok + "'";
 	}
 };
 struct DBRunError : DBError {

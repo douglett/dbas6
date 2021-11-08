@@ -40,6 +40,7 @@ function main()
 	let a = 10 + square(4)
 	print "inline call result:", a
 
-	lets b = "blah" + "_" + "flob"
+	let b = "blah" + "_" + "flob"
+	let b = "ass"
 	print "[" b "]"
 end function
