@@ -77,23 +77,25 @@ enum NODE_TYPE {
 	NT_TOKEN,
 	NT_LIST,
 	NT_STRLITERAL,
-	// NT_INTEGER,
+	NT_INTEGER,
 };
 
 const string NIL_STRING="<nil>";
 
 struct Node {
-	NODE_TYPE type;
+	NODE_TYPE type = NT_NIL;
 	string tok;
-	// int32_t i = 0;
+	int32_t i = 0;
 	vector<Node> list;
 
-	Node() : type(NT_NIL) {}
+	Node() {}
 	Node(NODE_TYPE _type) : type(_type) {}
 	static Node Token(const string& t) { Node n(NT_TOKEN);  return n.tok = t, n; }
 	static Node List() { return Node(NT_LIST); }
 	static Node CmdList(const string& t) { Node n(NT_LIST);  return n.pushtoken(t), n; }
 	static Node Literal(const string& lit) { Node n(NT_STRLITERAL);  return n.tok = clean_strliteral(lit), n; }
+	static Node Integer(int32_t i) { Node n(NT_INTEGER);  return n.i = i, n; }
+	static Node Integer(const string& istr) { Node n(NT_INTEGER);  return n.i = stoi(istr), n; }
 
 	Node  pop() {
 		assert(type == NT_LIST && list.size() > 0);
@@ -108,6 +110,7 @@ struct Node {
 	Node& pushlist() { return push( Node::List() ); }
 	Node& pushcmdlist(const string& t) { return push( Node::CmdList(t) ); }
 	Node& pushliteral(const string& lit) { return push( Node::Literal(lit) ); }
+	Node& pushint(const string& istr) { return push( Node::Integer(istr) ); }
 	Node& pushtoken(const string& t) { return push( Node::Token(t) ); }
 	void  pushtokens(const vector<string>& toklist) {
 		for (auto& t : toklist)
@@ -146,6 +149,7 @@ struct Node {
 		case NT_NIL:         printf("%s ", NIL_STRING.c_str());  break;
 		case NT_TOKEN:       printf("%s", tok.c_str());  break;
 		case NT_STRLITERAL:  printf("\"%s\"", tok.c_str());  break;
+		case NT_INTEGER:     printf("%d", i);  break;
 		case NT_LIST:
 			last = NT_NIL;
 			printf("(");

@@ -23,6 +23,7 @@ TODO:
 
 DONE:
 -----
+- proper integer support
 - while
 	- break
 	- continue

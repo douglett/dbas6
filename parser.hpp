@@ -339,7 +339,7 @@ struct Parser : InputFile {
 	string p_expr_atom(Node& p) {
 		if      (peek("identifier '("))  return p_expr_call(p);
 		else if (peek("identifier"))     return p_varpath(p);
-		else if (expect("@integer"))     return p.pushtoken(presults.at(0)), "int";
+		else if (expect("@integer"))     return p.pushint(presults.at(0)), "int";
 		else if (expect("@literal"))     return p.pushliteral(presults.at(0)), "string";
 		else    return error2("p_expr_atom"), "nil";
 	}

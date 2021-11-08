@@ -199,7 +199,7 @@ struct Runtime {
 	int32_t r_expr(const Node& n) {
 		if      (n.tok == "true")          return 1;
 		else if (n.tok == "false")         return 0;
-		else if (is_integer(n.tok))        return stoi(n.tok);
+		else if (n.type == NT_INTEGER)     return n.i;
 		else if (n.cmd() == "comp==")      return r_expr(n.at(1)) == r_expr(n.at(2));
 		else if (n.cmd() == "comp<")       return r_expr(n.at(1)) <  r_expr(n.at(2));
 		else if (n.cmd() == "strcmp")      return r_strexpr(n.at(1)) == r_strexpr(n.at(2));
