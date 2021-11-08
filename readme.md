@@ -11,17 +11,14 @@ TODO:
 - while
 	- break
 	- continue
-- strings 
-	- proper string expressions
-	- string addition (strcat)
-	- string equality (strcmp / strncmp)
 - varpath
 	- cleanup
 	- arrays
 	- object properties
+	- chains
 - call statements
 	- argument type checking
-- string auto malloc / free
+- auto malloc / free
 	- user type automalloc
 	- arrmalloc 
 
@@ -29,6 +26,9 @@ DONE:
 -----
 - varpath - difference between 'get' and 'set' paths
 - strings 
+	- string equality (strcmp / strncmp)
+	- string addition (strcat)
+	- proper string expressions
 	- string pointer support
 	- string malloc / free
 	- basic string expressions in let
@@ -39,6 +39,7 @@ DONE:
 	- local malloc block
 	- local free block
 	- runtime malloc
+	- local malloc in functions + runtime
 - return statement
 - runtime calls in expressions
 - runtime calls

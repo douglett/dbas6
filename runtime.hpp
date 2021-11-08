@@ -78,18 +78,21 @@ struct Runtime {
 				for (auto& d : n.list)
 					if (d.cmd() == "dim")  frames.back().vars[d.tokat(1)] = args.at(argc++);
 			}
-			// build local variables
+			// init locals
 			else if (n.cmd() == "dim_local") {
 				for (auto& d : n.list)
 					if (d.cmd() == "dim")  frames.back().vars[d.tokat(1)] = 0;
 			}
+			// build locals
+			else if (n.cmd() == "setup")  r_block_special(n);
 			// run block
 			else if (n.cmd() == "block") {
 				try { r_block(n); }
 				catch (DBCtrlReturn r) { }
 			}
 			// cleanup
-			// ...
+			else if (n.cmd() == "teardown")  r_block_special(n);
+		// return
 		int32_t _ret = frames.back().vars["$ret"];
 		frames.pop_back();
 		return _ret;
