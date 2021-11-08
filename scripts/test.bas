@@ -41,6 +41,8 @@ function main()
 	print "inline call result:", a
 
 	let b = "blah" + "_" + "flob"
-	let b = "ass"
+	# let b = "ass"
 	print "[" b "]"
+
+	print "fart" + "butt"; "poop"
 end function

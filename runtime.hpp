@@ -129,9 +129,9 @@ struct Runtime {
 	void r_print(const Node& p) {
 		for (auto& n : p.list)
 			if      (n.tok == "print") ;
-			else if (n.type == NT_STRLITERAL)     printf("%s", n.tok.c_str() );
-			else if (n.cmd() == "int_to_string")  printf("%d", r_expr(n.at(1)) );
-			else if (n.cmd() == "ptr_to_string")  printf("%s", ptr_to_string(r_expr(n.at(1))).c_str() );
+			else if (n.type == NT_STRLITERAL)   printf("%s", n.tok.c_str() );
+			else if (n.cmd() == "int_expr")     printf("%d", r_expr(n.at(1)) );
+			else if (n.cmd() == "string_expr")  printf("%s", r_strexpr(n.at(1)).c_str() );
 			else    error2("print error");
 		printf("\n");
 	}
@@ -171,6 +171,8 @@ struct Runtime {
 	string r_strexpr(const Node& n) {
 		if      (n.type == NT_STRLITERAL)  return n.tok;
 		else if (n.cmd() == "strcat")      return r_strexpr(n.at(1)) + r_strexpr(n.at(2));
+		else if (n.cmd() == "get_global")  return ptr_to_string( r_expr(n) );
+		else if (n.cmd() == "get_local")   return ptr_to_string( r_expr(n) );
 		
 		printf(">> strexpr error\n"), n.show();
 		return error2("strexpr error"), "nil";

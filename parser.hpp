@@ -186,14 +186,12 @@ struct Parser : InputFile {
 			if      (peek("endl"))  break;
 			else if (expect("',"))  l.pushliteral(" ");
 			else if (expect("';"))  l.pushliteral("\t");
-			else if (expect("@literal"))  l.pushliteral(presults.at(0));  // warning: concat expressions
-			// TODO: string / object expression
 			else {
-				auto& ll = l.pushcmdlist("int_to_string");
+				auto& ll = l.pushcmdlist("int_expr");
 				auto  t  = p_anyexpr(ll);
 				if      (t == "int") ;
-				else if (t == "string")  ll.at(0).tok = "ptr_to_string";
-				else    error();
+				else if (t == "string")  ll.at(0).tok = "string_expr";
+				else    error2("p_print");
 			}
 		// l.pushliteral("\n");
 		require("endl"), nextline();
@@ -326,13 +324,11 @@ struct Parser : InputFile {
 	}
 	
 	string p_expr_atom(Node& p) {
-		string type;
-		if      (peek("identifier '("))  type = p_expr_call(p);
-		else if (peek("identifier"))     type = p_varpath(p);
-		else if (expect("@integer"))     p.pushtoken(presults.at(0)), type = "int";
-		else if (expect("@literal"))     p.pushliteral(presults.at(0)), type = "string";
-		else    error2("p_expr_atom");
-		return type;
+		if      (peek("identifier '("))  return p_expr_call(p);
+		else if (peek("identifier"))     return p_varpath(p);
+		else if (expect("@integer"))     return p.pushtoken(presults.at(0)), "int";
+		else if (expect("@literal"))     return p.pushliteral(presults.at(0)), "string";
+		else    return error2("p_expr_atom"), "nil";
 	}
 
 	// string p_atom_type() {
