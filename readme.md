@@ -9,8 +9,7 @@ WIP basic (again)
 TODO:
 -----
 - while
-	- break
-	- continue
+	- nested breakout (break 2, continue 2)
 - varpath
 	- cleanup
 	- arrays
@@ -24,6 +23,9 @@ TODO:
 
 DONE:
 -----
+- while
+	- break
+	- continue
 - varpath - difference between 'get' and 'set' paths
 - strings 
 	- string equality (strcmp / strncmp)

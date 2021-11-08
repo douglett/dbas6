@@ -28,6 +28,7 @@ struct Parser : InputFile {
 	map<string, Prog::Dim>  globals;
 	map<string, Prog::Func> functions;
 	string cfuncname, ctypename;
+	int flag_while = 0;
 
 
 	// --- Program structure parsing ---
@@ -36,6 +37,7 @@ struct Parser : InputFile {
 		prog     = Node::CmdList("program");
 		setup    = Node::CmdList("setup");
 		teardown = Node::CmdList("teardown");
+		cfuncname = ctypename = "", flag_while = 0;
 		p_section("type_defs", prog);
 		p_section("dim_global", prog);
 		prog.push(setup);
@@ -148,15 +150,18 @@ struct Parser : InputFile {
 	void p_block(Node& p) {
 		auto& l = p.pushcmdlist("block");
 		while (!eof())
-			if      (expect("endl"))   nextline();  // empty line
-			else if (peek("'end"))     break;  // block end statement
-			else if (peek("'else"))    break;  // block end statement
-			else if (peek("'print"))   p_print(l);
-			// else if (peek("'input"))   p_input();
-			else if (peek("'return"))  p_return(l);
-			else if (peek("'if"))      p_if(l);
-			else if (peek("'let"))     p_let(l);
-			else if (peek("'call"))    p_call(l);
+			if      (expect("endl"))      nextline();  // empty line
+			else if (peek("'end"))        break;  // block end statement
+			else if (peek("'else"))       break;  // block end statement
+			else if (peek("'print"))      p_print(l);
+			// else if (peek("'input"))      p_input(l);
+			else if (peek("'return"))     p_return(l);
+			else if (peek("'break"))      p_break(l);
+			else if (peek("'continue"))   p_continue(l);
+			else if (peek("'if"))         p_if(l);
+			else if (peek("'while"))      p_while(l);
+			else if (peek("'let"))        p_let(l);
+			else if (peek("'call"))       p_call(l);
 			else    error();
 	}
 
@@ -186,6 +191,23 @@ struct Parser : InputFile {
 		require("endl"), nextline();
 	}
 
+	void p_break(Node& p) {
+		require("'break");
+		if (!flag_while)  error2("p_break");
+		// auto& l = p.pushcmdlist("break");
+		p.pushcmdlist("break");
+		// if    (expect("endl"))  l.pushtoken("0");
+		// else  p_intexpr(l);
+		require("endl"), nextline();
+	}
+
+	void p_continue(Node& p) {
+		require("'continue");
+		if (!flag_while)  error2("p_continue");
+		p.pushcmdlist("continue");
+		require("endl"), nextline();
+	}
+
 	void p_if(Node& p) {
 		require("'if");
 		auto& l = p.pushcmdlist("if");
@@ -199,6 +221,16 @@ struct Parser : InputFile {
 			l.pushtoken("true"), nextline(), p_block(l);
 		// block end
 		require("'end 'if endl"), nextline();
+	}
+
+	void p_while(Node& p) {
+		require("'while");
+		flag_while++;
+		auto& l = p.pushcmdlist("while");
+		p_intexpr(l), nextline();
+		p_block(l);
+		require("'end 'while endl"), nextline();
+		flag_while--;
 	}
 
 	void p_let(Node& p) {

@@ -87,7 +87,7 @@ struct Runtime {
 			else if (n.cmd() == "setup")  r_block_special(n);
 			// run block
 			else if (n.cmd() == "block") {
-				try { r_block(n); }
+				try   { r_block(n); }
 				catch (DBCtrlReturn r) { }
 			}
 			// cleanup
@@ -121,13 +121,17 @@ struct Runtime {
 			if      (n.tok == "block")         ;  // ignore this
 			else if (n.cmd() == "print")       r_print(n);
 			else if (n.cmd() == "if")          r_if(n);
+			else if (n.cmd() == "while")       r_while(n);
 			else if (n.cmd() == "call")        r_call(n);
 			else if (n.cmd() == "return")      r_return(n);
+			else if (n.cmd() == "break")       r_break(n);
+			else if (n.cmd() == "continue")    r_continue(n);
 			else if (n.cmd() == "set_global")  r_set(n);
 			else if (n.cmd() == "set_local")   r_set(n);
 			else if (n.cmd() == "strcpy")      r_strcpy(n);
 			else    error2("block error: "+n.cmd());
 	}
+
 
 	void r_print(const Node& p) {
 		for (auto& n : p.list)
@@ -139,27 +143,38 @@ struct Runtime {
 		printf("\n");
 	}
 	
-	void r_if(const Node& n) {
-		for (int i = 1; i < n.list.size(); i += 2) {
-			auto& cond = n.list.at(i);
-			auto& blk  = n.list.at(i+1);
-			if (r_expr(cond)) {
-				r_block(blk);
-				break;
-			}
-		}
-	}
-	
+
+	// general commands
 	void r_return(const Node& n) {
 		frames.back().vars.at("$ret") = r_expr(n.at(1));
 		throw DBCtrlReturn();
 	}
+	void r_break(const Node& n) {
+		throw DBCtrlBreak();
+	}
+	void r_continue(const Node& n) {
+		throw DBCtrlContinue();
+	}
+	void r_if(const Node& n) {
+		for (int i = 1; i < n.list.size(); i += 2)
+			if (r_expr( n.at(i) )) {
+				r_block( n.at(i+1) );
+				break;
+			}
+	}
+	void r_while(const Node& n) {
+		while (r_expr( n.at(1) ))
+			try   { r_block( n.at(2) ); }
+			catch (DBCtrlBreak b)    { break; }
+			catch (DBCtrlContinue c) { continue; }
+	}
+
 
 	void r_set(const Node& n) {
 		// format: cmd, varpath, vpath_type, expr
 		if      (n.cmd() == "set_global")  frames.front().vars.at(n.tokat(1)) = r_expr(n.at(3));
 		else if (n.cmd() == "set_local")   frames.back().vars.at(n.tokat(1))  = r_expr(n.at(3));
-		else    error2("let error");
+		else    error2("set error");
 	}
 	
 	void r_strcpy(const Node& n) {
@@ -186,6 +201,7 @@ struct Runtime {
 		else if (n.tok == "false")         return 0;
 		else if (is_integer(n.tok))        return stoi(n.tok);
 		else if (n.cmd() == "comp==")      return r_expr(n.at(1)) == r_expr(n.at(2));
+		else if (n.cmd() == "comp<")       return r_expr(n.at(1)) <  r_expr(n.at(2));
 		else if (n.cmd() == "strcmp")      return r_strexpr(n.at(1)) == r_strexpr(n.at(2));
 		else if (n.cmd() == "strncmp")     return r_strexpr(n.at(1)) != r_strexpr(n.at(2));
 		else if (n.cmd() == "add")         return r_expr(n.at(1)) +  r_expr(n.at(2));
