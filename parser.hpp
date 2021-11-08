@@ -185,18 +185,18 @@ struct Parser : InputFile {
 			l.pushtoken("print");
 		while (!eol())
 			if      (peek("endl"))  break;
-			else if (expect("',"))  l.push(Node::Literal(" "));
-			else if (expect("';"))  l.push(Node::Literal("\t"));
-			else if (expect("@literal"))  l.push(Node::Literal( presults.at(0) ));
+			else if (expect("',"))  l.pushliteral(" ");
+			else if (expect("';"))  l.pushliteral("\t");
+			else if (expect("@literal"))  l.pushliteral(presults.at(0));  // warning: concat expressions
 			// TODO: string / object expression
 			else {
-				auto& ll = l.pushlist();
-					ll.pushtoken("int_to_string");
-				auto t = p_atom_type();
-				if    (t == "string")  ll.at(0).tok = "ptr_to_string", p_varpath(ll);
-				else  p_expr(ll);
+				auto& ll = l.pushcmdlist("int_to_string");
+				auto  t  = p_anyexpr(ll);
+				if      (t == "int") ;
+				else if (t == "string")  ll.at(0).tok = "ptr_to_string";
+				else    error();
 			}
-		// l.push(Node::Literal("\n"));
+		// l.pushliteral("\n");
 		require("endl"), nextline();
 	}
 
@@ -205,19 +205,18 @@ struct Parser : InputFile {
 		auto& l = p.pushlist();
 			l.pushtoken("return");
 		if    (expect("endl"))  l.pushtoken("0");
-		else  p_expr(l);
+		else  p_intexpr(l);
 		require("endl"), nextline();
 	}
 
 	void p_if(Node& p) {
 		require("'if");
-		auto& l = p.pushlist();
-			l.pushtoken("if");
+		auto& l = p.pushcmdlist("if");
 		// first comparison
-		p_expr(l), require("endl"), nextline(), p_block(l);
+		p_intexpr(l), require("endl"), nextline(), p_block(l);
 		// else-if statements
 		if (expect("'else 'if"))
-			p_expr(l), require("endl"), nextline(), p_block(l);
+			p_intexpr(l), require("endl"), nextline(), p_block(l);
 		// last else
 		if (expect("'else endl"))
 			l.pushtoken("true"), nextline(), p_block(l);
@@ -231,36 +230,33 @@ struct Parser : InputFile {
 		if (t != "int")  error();
 		auto& n = p.back();
 		require("'=");
-		p_expr(n), require("endl"), nextline();
+		p_intexpr(n), require("endl"), nextline();
 	}
 
 	// TODO: temp command
 	void p_lets(Node& p) {
 		require("'lets");
-		auto& cpy = p.pushlist();
-			cpy.pushtoken("strcpy");
-
-		// printf("here\n");
-
+		auto& cpy = p.pushcmdlist("strcpy");
 		auto t = p_varpath(cpy);
-		// printf("here\n");
-		if (t != "string")  error();
-		
+		if (t != "string")  error();		
 		require("'=");
 
-		if    (require("@literal"))  cpy.push(Node::Literal(presults.at(0)));
-		else  p_varpath(cpy);
+		// if    (require("@literal"))  cpy.pushliteral(presults.at(0));
+		// else  p_varpath(cpy);
 
-		if (peek("'+")) {
-			auto lhs = cpy.pop();
-			auto& l  = cpy.pushlist();
-				l.pushtoken("strcat");
-				l.push(lhs);
-			// parse extras
-			while (expect("'+"))
-				if    (require("@literal"))  l.push(Node::Literal(presults.at(0)));
-				else  p_varpath(l);
-		}
+		// printf("here1\n");
+		p_strexpr(cpy);
+
+		// if (peek("'+")) {
+		// 	auto lhs = cpy.pop();
+		// 	auto& l  = cpy.pushlist();
+		// 		l.pushtoken("strcat");
+		// 		l.push(lhs);
+		// 	// parse extras
+		// 	while (expect("'+"))
+		// 		if    (require("@literal"))  l.pushliteral(presults.at(0));
+		// 		else  p_varpath(l);
+		// }
 
 		require("endl"), nextline();
 	}
@@ -275,64 +271,79 @@ struct Parser : InputFile {
 
 	// --- Expressions --- 
 
-	void p_expr(Node& p) {
-		p_expr_or(p);
+	void   p_intexpr(Node& p) { p_expr_or(p) == "int" || error(); }
+	void   p_strexpr(Node& p) {
+		p_expr_or(p) == "string" || error(); 
+		// p_expr_or(p);
 	}
+	string p_anyexpr(Node& p) { return p_expr_or(p); }
 
-	void p_expr_or(Node& p) {
-		p_expr_and(p);
+	string p_expr_or(Node& p) {
+		auto t = p_expr_and(p);
 		if (expect("'| '|")) {
 			auto lhs = p.pop();
 			auto& l  = p.pushlist();
 				l.pushtoken("or");
 				l.push(lhs);
-			p_expr_or(l);  // parse rhs
+			auto u = p_expr_or(l);  // parse rhs
+			if (t != "int" || t != u)  error();
 		}
+		return t;
 	}
 
-	void p_expr_and(Node& p) {
-		p_expr_comp(p);
+	string p_expr_and(Node& p) {
+		auto t = p_expr_comp(p);
 		if (expect("'& '&")) {
 			auto lhs = p.pop();
 			auto& l  = p.pushlist();
 				l.pushtoken("and");
 				l.push(lhs);
-			p_expr_and(l);  // parse rhs
+			auto u = p_expr_and(l);  // parse rhs
+			if (t != "int" || t != u)  error();
 		}
+		return t;
 	}
 
-	void p_expr_comp(Node& p) {
-		p_expr_add(p);
+	string p_expr_comp(Node& p) {
+		auto t = p_expr_add(p);
 		if (expect("@'= @'=") || expect("@'! @'=") || expect("@'<") || expect("@'>") || expect("@'< @'=") || expect("@'> @'=")) {
 			string op = presults.at(0) + (presults.size() > 1 ? presults.at(1) : "");
 			auto lhs = p.pop();
 			auto& l  = p.pushlist();
 				l.pushtoken("comp"+op);
 				l.push(lhs);
-			p_expr_add(l);  // parse rhs
+			auto u = p_expr_add(l);  // parse rhs
+			if (t != "int" || t != u)  error();
 		}
+		return t;
 	}
 	
-	void p_expr_add(Node& p) {
-		p_expr_mul(p);
+	string p_expr_add(Node& p) {
+		auto t = p_expr_mul(p);
 		while (expect("@'+") || expect("@'-")) {
 			auto lhs = p.pop();
 			auto& l  = p.pushlist();
-				l.pushtoken(presults.at(0) == "+" ? "add" : "sub");
-				l.push(lhs);
-			p_expr_mul(l);  // parse rhs
+			if      (t == "int")  l.pushtoken(presults.at(0) == "+" ? "add" : "sub");
+			else if (t == "string" && presults.at(0) == "+")  l.pushtoken("strcat");
+			else    error();
+			l.push(lhs);  // reappend lhs
+			auto u = p_expr_mul(l);  // parse rhs
+			if (t != u)  error();
 		}
+		return t;
 	}
 
-	void p_expr_mul(Node& p) {
-		p_expr_atom(p);
+	string p_expr_mul(Node& p) {
+		auto t = p_expr_atom(p);
 		while (expect("@'*") || expect("@'/")) {
 			auto lhs = p.pop();
 			auto& l  = p.pushlist();
 				l.pushtoken(presults.at(0) == "*" ? "mul" : "div");
 				l.push(lhs);
-			p_expr_atom(l);  // parse rhs
+			auto u = p_expr_atom(l);  // parse rhs
+			if (t != "int" || t != u)  error();
 		}
+		return t;
 	}
 	
 	string p_expr_atom(Node& p) {
@@ -340,23 +351,24 @@ struct Parser : InputFile {
 		if      (peek("identifier '("))  type = p_expr_call(p);
 		else if (peek("identifier"))     type = p_varpath(p);
 		else if (expect("@integer"))     p.pushtoken(presults.at(0)), type = "int";
+		else if (expect("@literal"))     p.pushliteral(presults.at(0)), type = "string";
 		else    error();
-		if (type != "int")  error();
+		// if (type != "int")  error();
 		return type;
 	}
 
-	string p_atom_type() {
-		if      (peek("identifier '("))  return "int";
-		else if (peek("@integer"))       return "int";
-		else if (peek("@literal"))       return "int";
-		else if (peek("identifier")) {
-			auto p = pos;
-			Node tmp(NT_LIST);
-			string t = p_varpath(tmp);
-			return pos = p, t;
-		}
-		else    return error(), "nil";
-	}
+	// string p_atom_type() {
+	// 	if      (peek("identifier '("))  return "int";
+	// 	else if (peek("@integer"))       return "int";
+	// 	else if (peek("@literal"))       return "int";
+	// 	else if (peek("identifier")) {
+	// 		auto p = pos;
+	// 		Node tmp(NT_LIST);
+	// 		string t = p_varpath(tmp);
+	// 		return pos = p, t;
+	// 	}
+	// 	else    return error(), "nil";
+	// }
 
 	string p_expr_call(Node& p) {
 		require("@identifier '(");
@@ -365,7 +377,7 @@ struct Parser : InputFile {
 			l.pushtokens({ "call", fname });
 		auto& args = l.pushlist();
 		while (!eol() && !peek("')")) {
-			p_expr(args);
+			p_intexpr(args);
 			if (!expect("',"))  break;
 		}
 		require("')");

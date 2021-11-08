@@ -13,7 +13,8 @@ TODO:
 	- continue
 - strings 
 	- proper string expressions
-	- complex expressions
+	- string addition (cat)
+	- string equality
 - varpath
 	- cleanup
 	- arrays

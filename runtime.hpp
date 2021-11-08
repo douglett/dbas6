@@ -169,15 +169,11 @@ struct Runtime {
 	}
 
 	string r_strexpr(const Node& n) {
-		string s;
-		if (n.cmd() == "strcat") {
-			for (auto& nn : n.list)
-				if      (nn.tok == "strcat") ;
-				else if (nn.type == NT_STRLITERAL)  s += nn.tok;
-				else    error2("strexpr error");
-		}
-		else  error2("strexpr error");
-		return s;
+		if      (n.type == NT_STRLITERAL)  return n.tok;
+		else if (n.cmd() == "strcat")      return r_strexpr(n.at(1)) + r_strexpr(n.at(2));
+		
+		printf(">> strexpr error\n"), n.show();
+		return error2("strexpr error"), "nil";
 	}
 
 	int32_t r_expr(const Node& n) {
@@ -193,8 +189,7 @@ struct Runtime {
 		else if (n.cmd() == "get_local")   return frames.back().vars.at(n.tokat(1));
 		else if (n.cmd() == "call")        return r_call(n);
 
-		printf(">> expr error\n");
-		n.show();
+		printf(">> expr error\n"), n.show();
 		return error2("expr error");
 	}
 

@@ -92,6 +92,7 @@ struct Node {
 	Node(NODE_TYPE _type) : type(_type) {}
 	static Node Token(const string& t) { Node n(NT_TOKEN);  return n.tok = t, n; }
 	static Node List() { return Node(NT_LIST); }
+	static Node CmdList(const string& t) { Node n(NT_LIST);  return n.pushtoken(t), n; }
 	static Node Literal(const string& lit) { Node n(NT_STRLITERAL);  return n.tok = clean_strliteral(lit), n; }
 
 	Node  pop() {
@@ -105,6 +106,8 @@ struct Node {
 		return list.back();		
 	}
 	Node& pushlist() { return push( Node::List() ); }
+	Node& pushcmdlist(const string& t) { return push( Node::CmdList(t) ); }
+	Node& pushliteral(const string& lit) { return push( Node::Literal(lit) ); }
 	Node& pushtoken(const string& t) { return push( Node::Token(t) ); }
 	void  pushtokens(const vector<string>& toklist) {
 		for (auto& t : toklist)
