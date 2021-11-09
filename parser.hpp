@@ -92,11 +92,11 @@ struct Parser : InputFile {
 			else  functions.at(cfuncname).locals[name] = { name, type };
 		p.pushlist().pushtokens({ "dim", name, type });
 		
-		// TODO: cleanup
+		// TODO: cleanup?
 		if      (type == "int") ;
 		else if (type == "float") ;
 		else {
-			if (type != "string")  error2("TODO: user types");
+			// if (type != "string")  error2("TODO: user types");
 			string loc = cfuncname.length() ? "local" : "global";
 			auto& ma = setup.pushlist();
 				ma.pushtokens({ "malloc", loc, name, type });

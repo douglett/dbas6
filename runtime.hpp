@@ -12,12 +12,15 @@ struct Runtime {
 	int32_t heap_top = 0;
 	int32_t flag_while = 0;  // runtime flags
 
+	// --- Init ---
 	Runtime(const Node& _prog) : prog(_prog) {
 		frames = { {} };
 	}
 
 
-	// find functions
+
+	// --- Find functions ---
+
 	const Node& findsection(const string& section) const {
 		for (const auto& n : prog.list)
 			if (n.cmd() == section)  return n;
@@ -31,23 +34,30 @@ struct Runtime {
 		error2("missing function: "+fname);
 		throw DBRunError();
 	}
-
-
-	// special runtime functions
-	void r_malloc(const string& locality, const string& name, const string& type) {
-		heap[++heap_top] = { heap_top, type };
-		if      (locality == "global")  frames.front().vars.at(name) = heap_top;
-		else if (locality == "local")   frames.back().vars.at(name) = heap_top;
-		else    error2("malloc error");
-		printf("malloc:  %d \n", heap_top);
+	const Node& findtype(const string& tname) const {
+		for (auto& t : findsection("type_defs").list)
+			if (t.cmd() == "type" && t.tokat(1) == tname)
+				return t;
+		error2("missing type: "+tname);
+		throw DBRunError();
 	}
-	void r_free(const string& locality, const string& name) {
-		int32_t addr = 0;
-		if      (locality == "global")  addr = frames.front().vars.at(name);
-		else if (locality == "local")   addr = frames.back().vars.at(name);
-		if (addr <= 0 || !heap.count(addr))  error2("free error");
-		heap.erase(addr);
-		printf("free:  %d \n", addr);
+
+
+
+	// --- Special runtime functions ---
+
+	void r_malloc_cmd(const string& locality, const string& name, const string& type) {
+		auto ptr = r_makeobj(type);		
+		if      (locality == "global")  frames.front().vars.at(name) = ptr;
+		else if (locality == "local")   frames.back().vars.at(name) = ptr;
+		else    error2("malloc error");
+	}
+	void r_free_cmd(const string& locality, const string& name) {
+		int32_t ptr = 0;
+		if      (locality == "global")  ptr = frames.front().vars.at(name);
+		else if (locality == "local")   ptr = frames.back().vars.at(name);
+		else    error2("free error");
+		r_freeobj(ptr);
 	}
 	string ptr_to_string(int32_t ptr) {
 		string s;
@@ -57,7 +67,49 @@ struct Runtime {
 	}
 
 
-	// program blocks
+
+	// --- Internal memory management ---
+
+	int32_t r_makeobj(const string& type) {
+		int32_t ptr = ++heap_top;
+		heap[ptr] = { ptr, type };
+		printf("malloc:   %03d   %s \n", ptr, type.c_str() );
+		int32_t data = 0;
+		// recursively allocate members 
+		if (type == "string") ;  // no inner members
+		else
+			for (auto& d : findtype(type).list)
+				if (d.cmd() == "dim") {
+					if    (d.tokat(2) == "int")  data = 0;
+					else  data = r_makeobj( d.tokat(2) );
+					heap.at(ptr).data.push_back( data );
+				}
+		// return ptr address
+		return ptr;
+	}
+
+	int32_t r_freeobj(int32_t ptr) {
+		if (ptr <= 0 || !heap.count(ptr))  error2("free fault at: "+ to_string(ptr));
+		auto type = heap.at(ptr).type;
+		int32_t offset = 0;
+		// recursively deallocate members
+		if (type == "string") ;  // no inner members
+		else
+			for (auto& d : findtype(type).list)
+				if (d.cmd() == "dim") {
+					if   (d.tokat(2) == "int") ;
+					else r_freeobj( heap.at(ptr).data.at(offset) );
+					offset++;
+				}
+		// deallocate this
+		printf("free:     %03d   %s \n", ptr, type.c_str() );
+		return heap.erase(ptr), 0;
+	}
+
+
+
+	// --- Program blocks ---
+
 	void r_prog() {
 		// initialize in order
 		findsection("type_defs");
@@ -111,8 +163,8 @@ struct Runtime {
 		for (auto& n : blk.list)
 			if      (n.tok == "setup")         ;  // ignore this
 			else if (n.tok == "teardown")      ;  // ignore
-			else if (n.cmd() == "malloc")      r_malloc(n.tokat(1), n.tokat(2), n.tokat(3));
-			else if (n.cmd() == "free")        r_free(n.tokat(1), n.tokat(2));
+			else if (n.cmd() == "malloc")      r_malloc_cmd(n.tokat(1), n.tokat(2), n.tokat(3));
+			else if (n.cmd() == "free")        r_free_cmd(n.tokat(1), n.tokat(2));
 			else    error2("special block error: "+n.cmd());
 	}
 
@@ -145,7 +197,9 @@ struct Runtime {
 	}
 	
 
-	// general commands
+
+	// --- General commands ---
+
 	void r_return(const Node& n) {
 		frames.back().vars.at("$ret") = r_expr(n.at(1));
 		throw DBCtrlReturn();
@@ -165,15 +219,12 @@ struct Runtime {
 	}
 	void r_while(const Node& n) {
 		flag_while++;
-		// printf("fw %d\n", flag_while);
 		while (r_expr( n.at(1) ))
 			try                      { r_block( n.at(2) ); }
 			catch (DBCtrlBreak b)    { if (--b.level > 0)  throw b;  break; }
 			catch (DBCtrlContinue c) { if (--c.level > 0)  throw c;  continue; }
 		flag_while--;
-		// printf("fw %d\n", flag_while);
 	}
-
 
 	void r_set(const Node& n) {
 		// format: cmd, varpath, vpath_type, expr
@@ -190,6 +241,10 @@ struct Runtime {
 		for (int i = 0; i < s.length(); i++)
 			data[i] = s[i];
 	}
+
+
+
+	// --- Expressions ---
 
 	string r_strexpr(const Node& n) {
 		if      (n.type == NT_STRLITERAL)  return n.tok;
@@ -229,7 +284,7 @@ struct Runtime {
 
 
 
-	// helpers
+	// --- Helpers ---
 	int error() const {
 		throw DBRunError();
 	}
