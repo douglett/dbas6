@@ -91,19 +91,14 @@ struct Parser : InputFile {
 			if    (!cfuncname.length())  globals[name] = { name, type };
 			else  functions.at(cfuncname).locals[name] = { name, type };
 		p.pushlist().pushtokens({ "dim", name, type });
-		
-		// TODO: cleanup?
-		if      (type == "int") ;
-		else if (type == "float") ;
-		else {
-			// if (type != "string")  error2("TODO: user types");
+		// allocate complex types
+		if (type != "int") {
 			string loc = cfuncname.length() ? "local" : "global";
 			auto& ma = setup.pushlist();
 				ma.pushtokens({ "malloc", loc, name, type });
 			auto& fr = teardown.pushlist();
 				fr.pushtokens({ "free",   loc, name, type });
 		}
-
 		// end dim
 		nextline();
 	}
@@ -368,27 +363,18 @@ struct Parser : InputFile {
 	}
 
 	string p_varpath(Node& p) {
-		// nesting method
-		string type = p_varpath_varname(p);
+		string type = p_varpath_base(p);
 		Node lhs;
 		while (!eof())
 			if    (peek("'."))  lhs = p.pop(),  type = p_varpath_prop(type, p),  p.back().push(lhs);
 			else  break;
 		return type;
-		
-		// stack method
-		// auto& l = p.pushcmdlist("varpath");
-		// string type = p_varpath_varname(l);
-		// if (peek("'."))  type = p_varpath_prop(type, l);
-		// return type;
 	}
 	
-	string p_varpath_varname(Node& p) {
-		// GET variables (TODO: messy)
+	string p_varpath_base(Node& p) {
 		require("@identifier");
 		auto name = presults.at(0);
 		auto& l   = p.pushlist();
-			// l.pushtoken("varpath");
 		// local vars
 		if (cfuncname.length() && functions.at(cfuncname).args.count(name)) {
 			auto& d = functions.at(cfuncname).args.at(name);
@@ -412,20 +398,16 @@ struct Parser : InputFile {
 	string p_varpath_prop(const string& type, Node& p) {
 		require("'. @identifier");
 		auto pname = presults.at(0);
-		// printf("%s %s\n", type.c_str(), pname.c_str());
 		if (!types.at(type).members.count(pname))  error2("p_varpath_prop");
 		auto& d = types.at(type).members.at(pname);
 		auto& l = p.pushlist();
-		// l.pushtokens({ "get_property", type, d.name, d.type });
 		l.pushtokens({ "get_property", type+"::"+d.name, d.type });
 		return d.type;
 	}
 
 	string p_varpath_set(Node& p) {
 		auto t  = p_varpath(p);
-		// auto t  = p_varpath_varname(p);
 		auto& l = p.back();
-		l.show();
 		if      (t == "string") ;
 		else if (l.cmd() == "get_local")     l.at(0).tok = "set_local";
 		else if (l.cmd() == "get_global")    l.at(0).tok = "set_global";

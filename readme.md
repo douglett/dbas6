@@ -8,11 +8,12 @@ WIP basic (again)
 
 TODO:
 -----
+- dim arrays
+- single line multi-dim
+- dim with initialise (int / string)
 - varpath
-	- cleanup
-	- object properties
 	- arrays
-	- chains
+	- array / object chains
 - call statements
 	- argument type checking
 - auto malloc / free
@@ -23,6 +24,10 @@ TODO:
 
 DONE:
 -----
+- varpath
+	- cleanup
+	- object properties
+	- object chains
 - proper integer support
 - while
 	- break

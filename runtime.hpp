@@ -19,113 +19,6 @@ struct Runtime {
 
 
 
-	// --- Find functions ---
-
-	const Node& findsection(const string& section) const {
-		for (const auto& n : prog.list)
-			if (n.cmd() == section)  return n;
-		error2("missing section: "+section);
-		throw DBRunError();
-	}
-	const Node& findfunc(const string& fname) const {
-		for (auto& f : findsection("function_defs").list)
-			if (f.cmd() == "function" && f.tokat(1) == fname)
-				return f;
-		error2("missing function: "+fname);
-		throw DBRunError();
-	}
-	const Node& findtype(const string& tname) const {
-		for (auto& t : findsection("type_defs").list)
-			if (t.cmd() == "type" && t.tokat(1) == tname)
-				return t;
-		error2("missing type: "+tname);
-		throw DBRunError();
-	}
-	// int32_t findpropindex(const string& prop) const {
-	// 	auto propsplit = spliton(prop, "::");
-	// 	string type = propsplit.at(0), pname = propsplit.at(1);
-	// 	int32_t i = 0;
-	// 	for (auto& p : findtype(type).list)
-	// 		if (p.cmd() == "dim") {
-	// 			if    (p.tokat(1) == pname)  return i;
-	// 			else  i++;
-	// 		}
-	// 	error2("missing property: "+prop);
-	// 	throw DBRunError();
-	// }
-
-
-
-	// --- Special runtime functions ---
-
-	void r_malloc_cmd(const string& locality, const string& name, const string& type) {
-		auto ptr = r_makeobj(type);		
-		if      (locality == "global")  globals.vars.at(name) = ptr;
-		else if (locality == "local")   frames.back().vars.at(name) = ptr;
-		else    error2("malloc error");
-	}
-	void r_free_cmd(const string& locality, const string& name) {
-		int32_t ptr = 0;
-		if      (locality == "global")  ptr = globals.vars.at(name);
-		else if (locality == "local")   ptr = frames.back().vars.at(name);
-		else    error2("free error");
-		r_freeobj(ptr);
-	}
-	string ptr_to_string(int32_t ptr) {
-		string s;
-		for (auto c : heap.at(ptr).data)
-			s += char(c);
-		return s;
-	}
-
-
-
-	// --- Internal memory management ---
-
-	int32_t r_makeobj(const string& type) {
-		int32_t ptr = ++heap_top;
-		heap[ptr] = { ptr, type };
-		// printf("malloc:   %03d   %s \n", ptr, type.c_str() );
-		int32_t data = 0;
-		// recursively allocate members 
-		if (type == "string") ;  // no inner members
-		else
-			for (auto& d : findtype(type).list)
-				if (d.cmd() == "dim") {
-					if    (d.tokat(2) == "int")  data = 0;
-					else  data = r_makeobj( d.tokat(2) );
-					heap.at(ptr).data.push_back( data );
-				}
-		// return ptr address
-		return ptr;
-	}
-
-	int32_t r_freeobj(int32_t ptr) {
-		if (ptr <= 0 || !heap.count(ptr))  error2("free fault at: "+ to_string(ptr));
-		auto type = heap.at(ptr).type;
-		int32_t offset = 0;
-		// recursively deallocate members
-		if (type == "string") ;  // no inner members
-		else
-			for (auto& d : findtype(type).list)
-				if (d.cmd() == "dim") {
-					if   (d.tokat(2) == "int") ;
-					else r_freeobj( heap.at(ptr).data.at(offset) );
-					offset++;
-				}
-		// deallocate this
-		// printf("free:     %03d   %s \n", ptr, type.c_str() );
-		return heap.erase(ptr), 0;
-	}
-
-	int32_t& r_deref(const string& prop, int32_t ptr) {
-		if (ptr <= 0 || !heap.count(ptr))  error2("deref fault at: "+ to_string(ptr));
-		int32_t offset = defines.at(prop);
-		return heap.at(ptr).data.at(offset);
-	}
-
-
-
 	// --- Program blocks ---
 
 	void r_prog() {
@@ -192,13 +85,12 @@ struct Runtime {
 		for (auto& n : blk.list)
 			if      (n.tok == "setup")         ;  // ignore this
 			else if (n.tok == "teardown")      ;  // ignore
-			else if (n.cmd() == "malloc")      r_malloc_cmd(n.tokat(1), n.tokat(2), n.tokat(3));
-			else if (n.cmd() == "free")        r_free_cmd(n.tokat(1), n.tokat(2));
+			else if (n.cmd() == "malloc")      r_malloc(n.tokat(1), n.tokat(2), n.tokat(3));
+			else if (n.cmd() == "free")        r_free(n.tokat(1), n.tokat(2));
 			else    error2("special block error: "+n.cmd());
 	}
 
 	void r_block(const Node& blk) {
-		// printf("block\n");
 		for (auto& n : blk.list)
 			if      (n.tok == "block")            ;  // ignore this
 			else if (n.cmd() == "print")          r_print(n);
@@ -260,7 +152,7 @@ struct Runtime {
 		// format: cmd, varpath, vpath_type, expr
 		if      (n.cmd() == "set_global")     globals.vars.at(n.tokat(1)) = r_expr(n.at(3));
 		else if (n.cmd() == "set_local")      frames.back().vars.at(n.tokat(1))  = r_expr(n.at(3));
-		else if (n.cmd() == "set_property")   r_deref( n.tokat(1), r_expr(n.at(3)) ) = r_expr(n.at(4));
+		else if (n.cmd() == "set_property")   r_mem_deref( n.tokat(1), r_expr(n.at(3)) ) = r_expr(n.at(4));
 		else    error2("set error");
 	}
 	
@@ -305,7 +197,7 @@ struct Runtime {
 		else if (n.cmd() == "div")            return r_expr(n.at(1)) /  r_expr(n.at(2));
 		else if (n.cmd() == "get_global")     return globals.vars.at(n.tokat(1));
 		else if (n.cmd() == "get_local")      return frames.back().vars.at(n.tokat(1));
-		else if (n.cmd() == "get_property")   return r_deref( n.tokat(1), r_expr(n.at(3)) );
+		else if (n.cmd() == "get_property")   return r_mem_deref( n.tokat(1), r_expr(n.at(3)) );
 		else if (n.cmd() == "strcmp")         return r_strexpr(n.at(1)) == r_strexpr(n.at(2));
 		else if (n.cmd() == "strncmp")        return r_strexpr(n.at(1)) != r_strexpr(n.at(2));
 		else if (n.cmd() == "call")           return r_call(n);
@@ -316,7 +208,78 @@ struct Runtime {
 
 
 
+	// --- Special runtime functions ---
+
+	void r_malloc(const string& locality, const string& name, const string& type) {
+		auto ptr = r_mem_malloc(type);		
+		if      (locality == "global")  globals.vars.at(name) = ptr;
+		else if (locality == "local")   frames.back().vars.at(name) = ptr;
+		else    error2("malloc error");
+	}
+	void r_free(const string& locality, const string& name) {
+		int32_t ptr = 0;
+		if      (locality == "global")  ptr = globals.vars.at(name);
+		else if (locality == "local")   ptr = frames.back().vars.at(name);
+		else    error2("free error");
+		r_mem_free(ptr);
+	}
+	string ptr_to_string(int32_t ptr) {
+		string s;
+		for (auto c : heap.at(ptr).data)
+			s += char(c);
+		return s;
+	}
+
+
+
+	// --- Internal memory management ---
+
+	int32_t r_mem_malloc(const string& type) {
+		int32_t ptr = ++heap_top;
+		heap[ptr] = { ptr, type };
+		// printf("malloc:   %03d   %s \n", ptr, type.c_str() );
+		int32_t data = 0;
+		// recursively allocate members 
+		if (type == "string") ;  // no inner members
+		else
+			for (auto& d : findtype(type).list)
+				if (d.cmd() == "dim") {
+					if    (d.tokat(2) == "int")  data = 0;
+					else  data = r_mem_malloc( d.tokat(2) );
+					heap.at(ptr).data.push_back( data );
+				}
+		// return ptr address
+		return ptr;
+	}
+
+	int32_t r_mem_free(int32_t ptr) {
+		if (ptr <= 0 || !heap.count(ptr))  error2("free fault at: "+ to_string(ptr));
+		auto type = heap.at(ptr).type;
+		int32_t offset = 0;
+		// recursively deallocate members
+		if (type == "string") ;  // no inner members
+		else
+			for (auto& d : findtype(type).list)
+				if (d.cmd() == "dim") {
+					if   (d.tokat(2) == "int") ;
+					else r_mem_free( heap.at(ptr).data.at(offset) );
+					offset++;
+				}
+		// deallocate this
+		// printf("free:     %03d   %s \n", ptr, type.c_str() );
+		return heap.erase(ptr), 0;
+	}
+
+	int32_t& r_mem_deref(const string& prop, int32_t ptr) {
+		if (ptr <= 0 || !heap.count(ptr))  error2("deref fault at: "+ to_string(ptr));
+		int32_t offset = defines.at(prop);
+		return heap.at(ptr).data.at(offset);
+	}
+
+
+
 	// --- Helpers ---
+
 	int error() const {
 		throw DBRunError();
 	}
@@ -326,4 +289,26 @@ struct Runtime {
 		d.error_string += " :: " + msg;
 		throw d;
 	}
-};
+
+	const Node& findsection(const string& section) const {
+		for (const auto& n : prog.list)
+			if (n.cmd() == section)  return n;
+		error2("missing section: "+section);
+		throw DBRunError();
+	}
+	const Node& findfunc(const string& fname) const {
+		for (auto& f : findsection("function_defs").list)
+			if (f.cmd() == "function" && f.tokat(1) == fname)
+				return f;
+		error2("missing function: "+fname);
+		throw DBRunError();
+	}
+	const Node& findtype(const string& tname) const {
+		for (auto& t : findsection("type_defs").list)
+			if (t.cmd() == "type" && t.tokat(1) == tname)
+				return t;
+		error2("missing type: "+tname);
+		throw DBRunError();
+	}
+
+}; // end Runtime
