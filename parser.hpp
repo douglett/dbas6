@@ -368,19 +368,35 @@ struct Parser : InputFile {
 	}
 
 	string p_varpath(Node& p) {
+		// nesting method
+		string type = p_varpath_varname(p);
+		Node lhs;
+		while (!eof())
+			if    (peek("'."))  lhs = p.pop(),  type = p_varpath_prop(type, p),  p.back().push(lhs);
+			else  break;
+		return type;
+		
+		// stack method
+		// auto& l = p.pushcmdlist("varpath");
+		// string type = p_varpath_varname(l);
+		// if (peek("'."))  type = p_varpath_prop(type, l);
+		// return type;
+	}
+	
+	string p_varpath_varname(Node& p) {
 		// GET variables (TODO: messy)
 		require("@identifier");
-		string name = presults.at(0);
-		auto& l = p.pushlist();
+		auto name = presults.at(0);
+		auto& l   = p.pushlist();
 			// l.pushtoken("varpath");
 		// local vars
 		if (cfuncname.length() && functions.at(cfuncname).args.count(name)) {
-			auto& d = functions.at(cfuncname).args[name];
+			auto& d = functions.at(cfuncname).args.at(name);
 			l.pushtokens({ "get_local", d.name, d.type });
 			return d.type;
 		}
 		else if (cfuncname.length() && functions.at(cfuncname).locals.count(name)) {
-			auto& d = functions.at(cfuncname).locals[name];
+			auto& d = functions.at(cfuncname).locals.at(name);
 			l.pushtokens({ "get_local", d.name, d.type });
 			return d.type;
 		}
@@ -393,12 +409,27 @@ struct Parser : InputFile {
 		else  return error(), "nil";
 	}
 
+	string p_varpath_prop(const string& type, Node& p) {
+		require("'. @identifier");
+		auto pname = presults.at(0);
+		// printf("%s %s\n", type.c_str(), pname.c_str());
+		if (!types.at(type).members.count(pname))  error2("p_varpath_prop");
+		auto& d = types.at(type).members.at(pname);
+		auto& l = p.pushlist();
+		// l.pushtokens({ "get_property", type, d.name, d.type });
+		l.pushtokens({ "get_property", type+"::"+d.name, d.type });
+		return d.type;
+	}
+
 	string p_varpath_set(Node& p) {
 		auto t  = p_varpath(p);
+		// auto t  = p_varpath_varname(p);
 		auto& l = p.back();
+		l.show();
 		if      (t == "string") ;
-		else if (l.cmd() == "get_local")   l.at(0).tok = "set_local";
-		else if (l.cmd() == "get_global")  l.at(0).tok = "set_global";
+		else if (l.cmd() == "get_local")     l.at(0).tok = "set_local";
+		else if (l.cmd() == "get_global")    l.at(0).tok = "set_global";
+		else if (l.cmd() == "get_property")  l.at(0).tok = "set_property";
 		else    error2("p_varpath_set");
 		return t;
 	}

@@ -26,7 +26,7 @@ struct InputPattern {
 
 	InputPattern(string _pattern) {
 		pattern = _pattern;
-		auto vs = split(pattern);
+		auto vs = splitws(pattern);
 		for (auto patt : vs) {
 			SubPattern p;
 			if      (patt.substr(0, 1) == "@")  patt = patt.substr(1), p.record = true;

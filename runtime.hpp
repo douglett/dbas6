@@ -7,15 +7,15 @@ struct Runtime {
 	struct StackFrame { map<string, int32_t> vars; };
 	struct HeapObject { int32_t index; string type; vector<int32_t> data; };
 	Node prog;
+	StackFrame globals;
 	vector<StackFrame> frames;
 	map<int32_t, HeapObject> heap;
+	map<string, int32_t> defines;
 	int32_t heap_top = 0;
 	int32_t flag_while = 0;  // runtime flags
 
 	// --- Init ---
-	Runtime(const Node& _prog) : prog(_prog) {
-		frames = { {} };
-	}
+	Runtime(const Node& _prog) : prog(_prog) { }
 
 
 
@@ -41,6 +41,18 @@ struct Runtime {
 		error2("missing type: "+tname);
 		throw DBRunError();
 	}
+	// int32_t findpropindex(const string& prop) const {
+	// 	auto propsplit = spliton(prop, "::");
+	// 	string type = propsplit.at(0), pname = propsplit.at(1);
+	// 	int32_t i = 0;
+	// 	for (auto& p : findtype(type).list)
+	// 		if (p.cmd() == "dim") {
+	// 			if    (p.tokat(1) == pname)  return i;
+	// 			else  i++;
+	// 		}
+	// 	error2("missing property: "+prop);
+	// 	throw DBRunError();
+	// }
 
 
 
@@ -48,13 +60,13 @@ struct Runtime {
 
 	void r_malloc_cmd(const string& locality, const string& name, const string& type) {
 		auto ptr = r_makeobj(type);		
-		if      (locality == "global")  frames.front().vars.at(name) = ptr;
+		if      (locality == "global")  globals.vars.at(name) = ptr;
 		else if (locality == "local")   frames.back().vars.at(name) = ptr;
 		else    error2("malloc error");
 	}
 	void r_free_cmd(const string& locality, const string& name) {
 		int32_t ptr = 0;
-		if      (locality == "global")  ptr = frames.front().vars.at(name);
+		if      (locality == "global")  ptr = globals.vars.at(name);
 		else if (locality == "local")   ptr = frames.back().vars.at(name);
 		else    error2("free error");
 		r_freeobj(ptr);
@@ -73,7 +85,7 @@ struct Runtime {
 	int32_t r_makeobj(const string& type) {
 		int32_t ptr = ++heap_top;
 		heap[ptr] = { ptr, type };
-		printf("malloc:   %03d   %s \n", ptr, type.c_str() );
+		// printf("malloc:   %03d   %s \n", ptr, type.c_str() );
 		int32_t data = 0;
 		// recursively allocate members 
 		if (type == "string") ;  // no inner members
@@ -102,8 +114,14 @@ struct Runtime {
 					offset++;
 				}
 		// deallocate this
-		printf("free:     %03d   %s \n", ptr, type.c_str() );
+		// printf("free:     %03d   %s \n", ptr, type.c_str() );
 		return heap.erase(ptr), 0;
+	}
+
+	int32_t& r_deref(const string& prop, int32_t ptr) {
+		if (ptr <= 0 || !heap.count(ptr))  error2("deref fault at: "+ to_string(ptr));
+		int32_t offset = defines.at(prop);
+		return heap.at(ptr).data.at(offset);
 	}
 
 
@@ -112,12 +130,23 @@ struct Runtime {
 
 	void r_prog() {
 		// initialize in order
-		findsection("type_defs");
+		for (auto& t : findsection("type_defs").list)
+			if (t.cmd() == "type")  r_type(t);
 		for (auto& d : findsection("dim_global").list)
-			if (d.cmd() == "dim")  frames.back().vars[d.tokat(1)] = 0;
+			if (d.cmd() == "dim")  globals.vars[d.tokat(1)] = 0;
 		r_block_special(findsection("setup"));
 		r_func("main", {});
 		r_block_special(findsection("teardown"));
+		printf("::end::  def %d, global %d, heap %d \n", defines.size(), globals.vars.size(), heap.size() );
+	}
+
+	void r_type(const Node& type) {
+		string tname = type.tokat(1);
+		int32_t idx = 0;
+		for (auto& p : type.list)
+			if (p.cmd() == "dim")
+				defines[ tname+"::"+p.tokat(1) ] = idx++;
+		defines[ tname+"::$len" ] = idx;
 	}
 
 	int32_t r_func(const string& fname, vector<int32_t> args) {
@@ -171,17 +200,18 @@ struct Runtime {
 	void r_block(const Node& blk) {
 		// printf("block\n");
 		for (auto& n : blk.list)
-			if      (n.tok == "block")         ;  // ignore this
-			else if (n.cmd() == "print")       r_print(n);
-			else if (n.cmd() == "if")          r_if(n);
-			else if (n.cmd() == "while")       r_while(n);
-			else if (n.cmd() == "call")        r_call(n);
-			else if (n.cmd() == "return")      r_return(n);
-			else if (n.cmd() == "break")       r_break(n);
-			else if (n.cmd() == "continue")    r_continue(n);
-			else if (n.cmd() == "set_global")  r_set(n);
-			else if (n.cmd() == "set_local")   r_set(n);
-			else if (n.cmd() == "strcpy")      r_strcpy(n);
+			if      (n.tok == "block")            ;  // ignore this
+			else if (n.cmd() == "print")          r_print(n);
+			else if (n.cmd() == "if")             r_if(n);
+			else if (n.cmd() == "while")          r_while(n);
+			else if (n.cmd() == "call")           r_call(n);
+			else if (n.cmd() == "return")         r_return(n);
+			else if (n.cmd() == "break")          r_break(n);
+			else if (n.cmd() == "continue")       r_continue(n);
+			else if (n.cmd() == "set_global")     r_set(n);
+			else if (n.cmd() == "set_local")      r_set(n);
+			else if (n.cmd() == "set_property")   r_set(n);
+			else if (n.cmd() == "strcpy")         r_strcpy(n);
 			else    error2("block error: "+n.cmd());
 	}
 
@@ -228,8 +258,9 @@ struct Runtime {
 
 	void r_set(const Node& n) {
 		// format: cmd, varpath, vpath_type, expr
-		if      (n.cmd() == "set_global")  frames.front().vars.at(n.tokat(1)) = r_expr(n.at(3));
-		else if (n.cmd() == "set_local")   frames.back().vars.at(n.tokat(1))  = r_expr(n.at(3));
+		if      (n.cmd() == "set_global")     globals.vars.at(n.tokat(1)) = r_expr(n.at(3));
+		else if (n.cmd() == "set_local")      frames.back().vars.at(n.tokat(1))  = r_expr(n.at(3));
+		else if (n.cmd() == "set_property")   r_deref( n.tokat(1), r_expr(n.at(3)) ) = r_expr(n.at(4));
 		else    error2("set error");
 	}
 	
@@ -257,26 +288,27 @@ struct Runtime {
 	}
 
 	int32_t r_expr(const Node& n) {
-		if      (n.tok == "true")          return 1;
-		else if (n.tok == "false")         return 0;
-		else if (n.type == NT_INTEGER)     return n.i;
-		else if (n.cmd() == "or")          return r_expr(n.at(1)) || r_expr(n.at(2));
-		else if (n.cmd() == "and")         return r_expr(n.at(1)) && r_expr(n.at(2));
-		else if (n.cmd() == "comp==")      return r_expr(n.at(1)) == r_expr(n.at(2));
-		else if (n.cmd() == "comp!=")      return r_expr(n.at(1)) != r_expr(n.at(2));
-		else if (n.cmd() == "comp<")       return r_expr(n.at(1)) <  r_expr(n.at(2));
-		else if (n.cmd() == "comp>")       return r_expr(n.at(1)) >  r_expr(n.at(2));
-		else if (n.cmd() == "comp<=")      return r_expr(n.at(1)) <= r_expr(n.at(2));
-		else if (n.cmd() == "comp>=")      return r_expr(n.at(1)) >= r_expr(n.at(2));
-		else if (n.cmd() == "add")         return r_expr(n.at(1)) +  r_expr(n.at(2));
-		else if (n.cmd() == "sub")         return r_expr(n.at(1)) -  r_expr(n.at(2));
-		else if (n.cmd() == "mul")         return r_expr(n.at(1)) *  r_expr(n.at(2));
-		else if (n.cmd() == "div")         return r_expr(n.at(1)) /  r_expr(n.at(2));
-		else if (n.cmd() == "get_global")  return frames.front().vars.at(n.tokat(1));
-		else if (n.cmd() == "get_local")   return frames.back().vars.at(n.tokat(1));
-		else if (n.cmd() == "strcmp")      return r_strexpr(n.at(1)) == r_strexpr(n.at(2));
-		else if (n.cmd() == "strncmp")     return r_strexpr(n.at(1)) != r_strexpr(n.at(2));
-		else if (n.cmd() == "call")        return r_call(n);
+		if      (n.tok == "true")             return 1;
+		else if (n.tok == "false")            return 0;
+		else if (n.type == NT_INTEGER)        return n.i;
+		else if (n.cmd() == "or")             return r_expr(n.at(1)) || r_expr(n.at(2));
+		else if (n.cmd() == "and")            return r_expr(n.at(1)) && r_expr(n.at(2));
+		else if (n.cmd() == "comp==")         return r_expr(n.at(1)) == r_expr(n.at(2));
+		else if (n.cmd() == "comp!=")         return r_expr(n.at(1)) != r_expr(n.at(2));
+		else if (n.cmd() == "comp<")          return r_expr(n.at(1)) <  r_expr(n.at(2));
+		else if (n.cmd() == "comp>")          return r_expr(n.at(1)) >  r_expr(n.at(2));
+		else if (n.cmd() == "comp<=")         return r_expr(n.at(1)) <= r_expr(n.at(2));
+		else if (n.cmd() == "comp>=")         return r_expr(n.at(1)) >= r_expr(n.at(2));
+		else if (n.cmd() == "add")            return r_expr(n.at(1)) +  r_expr(n.at(2));
+		else if (n.cmd() == "sub")            return r_expr(n.at(1)) -  r_expr(n.at(2));
+		else if (n.cmd() == "mul")            return r_expr(n.at(1)) *  r_expr(n.at(2));
+		else if (n.cmd() == "div")            return r_expr(n.at(1)) /  r_expr(n.at(2));
+		else if (n.cmd() == "get_global")     return globals.vars.at(n.tokat(1));
+		else if (n.cmd() == "get_local")      return frames.back().vars.at(n.tokat(1));
+		else if (n.cmd() == "get_property")   return r_deref( n.tokat(1), r_expr(n.at(3)) );
+		else if (n.cmd() == "strcmp")         return r_strexpr(n.at(1)) == r_strexpr(n.at(2));
+		else if (n.cmd() == "strncmp")        return r_strexpr(n.at(1)) != r_strexpr(n.at(2));
+		else if (n.cmd() == "call")           return r_call(n);
 
 		printf(">> expr error\n"), n.show();
 		return error2("expr error");

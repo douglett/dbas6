@@ -10,8 +10,8 @@ TODO:
 -----
 - varpath
 	- cleanup
-	- arrays
 	- object properties
+	- arrays
 	- chains
 - call statements
 	- argument type checking

@@ -63,14 +63,31 @@ int is_strliteral(const string& s) {
 string clean_strliteral(const string& s) {
 	return (s.length() >= 2 && s[0] == '"' && s.back() == '"') ? s.substr(1, s.length()-2) : s;
 }
-vector<string> split(const string& str) {
+vector<string> splitws(const string& str) {
 	vector<string> vs;
 	stringstream ss(str);
 	string s;
 	while(ss >> s)  vs.push_back(s);
 	return vs;
 }
-// string join(const vector<string>& vs)
+// vector<string> spliton(const string& str, const string& delim) {
+// 	vector<string> vs;
+// 	int last = 0, next = 0;
+// 	while ((next = str.find(delim, last)) != string::npos) {
+// 		vs.push_back( str.substr(last, next-last) );
+// 		last = next + delim.length();
+// 	}
+// 	if (last < str.length()-1)  vs.push_back( str.substr(last) );
+// 	return vs;
+// }
+// string join(const vector<string>& vs, const string& delim) {
+// 	string str;
+// 	int first = 1;
+// 	for (auto& s : vs)
+// 		if    (first)  str += s,  first = 0;
+// 		else  str += delim + s;
+// 	return str;
+// }
 
 
 
