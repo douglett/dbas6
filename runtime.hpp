@@ -105,6 +105,7 @@ struct Runtime {
 			else if (n.cmd() == "set_global")     r_set(n);
 			else if (n.cmd() == "set_local")      r_set(n);
 			else if (n.cmd() == "set_property")   r_set(n);
+			else if (n.cmd() == "set_arraypos")   r_set(n);
 			else if (n.cmd() == "strcpy")         r_strcpy(n);
 			else    error2("block error: "+n.cmd());
 	}
@@ -155,6 +156,7 @@ struct Runtime {
 		if      (n.cmd() == "set_global")     globals.vars.at(n.tokat(1)) = r_expr(n.at(3));
 		else if (n.cmd() == "set_local")      frames.back().vars.at(n.tokat(1))  = r_expr(n.at(3));
 		else if (n.cmd() == "set_property")   heapat( r_expr(n.at(3)), n.tokat(1) ) = r_expr(n.at(4));
+		else if (n.cmd() == "set_arraypos")   heapat( r_expr(n.at(3)), r_expr(n.at(1)) ) = r_expr(n.at(4));
 		else    error2("set error");
 	}
 	
@@ -200,6 +202,7 @@ struct Runtime {
 		else if (n.cmd() == "get_global")     return globals.vars.at(n.tokat(1));
 		else if (n.cmd() == "get_local")      return frames.back().vars.at(n.tokat(1));
 		else if (n.cmd() == "get_property")   return heapat( r_expr(n.at(3)), n.tokat(1) );
+		else if (n.cmd() == "get_arraypos")   return heapat( r_expr(n.at(3)), r_expr(n.at(1)) );
 		else if (n.cmd() == "strcmp")         return r_strexpr(n.at(1)) == r_strexpr(n.at(2));
 		else if (n.cmd() == "strncmp")        return r_strexpr(n.at(1)) != r_strexpr(n.at(2));
 		else if (n.cmd() == "call")           return r_call(n);

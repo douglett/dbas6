@@ -378,8 +378,9 @@ struct Parser : InputFile {
 		string type = p_varpath_base(p);
 		Node lhs;
 		while (!eof())
-			if    (peek("'."))  lhs = p.pop(),  type = p_varpath_prop(type, p),  p.back().push(lhs);
-			else  break;
+			if       (peek("'."))  lhs = p.pop(),  type = p_varpath_prop(type, p),    p.back().push(lhs);
+			else if  (peek("'["))  lhs = p.pop(),  type = p_varpath_arrpos(type, p),  p.back().push(lhs);
+			else     break;
 		return type;
 	}
 	
@@ -413,8 +414,17 @@ struct Parser : InputFile {
 		if (!types.at(type).members.count(pname))  error2("p_varpath_prop");
 		auto& d = types.at(type).members.at(pname);
 		auto& l = p.pushlist();
-		l.pushtokens({ "get_property", type+"::"+d.name, d.type });
+			l.pushtokens({ "get_property", type+"::"+d.name, d.type });
 		return d.type;
+	}
+	
+	string p_varpath_arrpos(const string& type, Node& p) {
+		require("'[");
+		auto& l = p.pushcmdlist("get_arraypos");
+			p_intexpr(l);
+			l.pushtoken(type);
+		require("']");
+		return type;
 	}
 
 	string p_varpath_set(Node& p) {
@@ -424,6 +434,7 @@ struct Parser : InputFile {
 		else if (l.cmd() == "get_local")     l.at(0).tok = "set_local";
 		else if (l.cmd() == "get_global")    l.at(0).tok = "set_global";
 		else if (l.cmd() == "get_property")  l.at(0).tok = "set_property";
+		else if (l.cmd() == "get_arraypos")  l.at(0).tok = "set_arraypos";
 		else    error2("p_varpath_set");
 		return t;
 	}

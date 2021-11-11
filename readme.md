@@ -8,6 +8,7 @@ WIP basic (again)
 
 TODO:
 -----
+- check if isarray causing problems, otherwise use type[]
 - varpath
 	- arrays
 	- array / object chains

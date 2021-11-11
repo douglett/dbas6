@@ -60,8 +60,14 @@ int is_integer(const string& s) {
 int is_strliteral(const string& s) {
 	return s.size() >= 2 && s[0] == '"' && s.back() == '"';
 }
+int is_arraytype(const string& s) {
+	return s.length() >= 3 && s[s.length()-2] == '[' && s[s.length()-1] == ']';
+}
+string basetype(const string& s) {
+	return is_arraytype(s) ? s.substr(0, s.length()-2) : s;
+}
 string clean_strliteral(const string& s) {
-	return (s.length() >= 2 && s[0] == '"' && s.back() == '"') ? s.substr(1, s.length()-2) : s;
+	return is_strliteral(s) ? s.substr(1, s.length()-2) : s;
 }
 vector<string> splitws(const string& str) {
 	vector<string> vs;
