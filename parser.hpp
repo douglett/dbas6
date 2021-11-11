@@ -84,30 +84,35 @@ struct Parser : InputFile {
 	
 	void p_dim(Node& p) {
 		string name, type;
-		int isarray = 0;
+		int32_t isarray = 0, len = 0;
 		if      (expect("'dim @identifier @identifier"))  name = presults.at(1), type = presults.at(0);
 		else if (require("'dim @identifier"))  name = presults.at(0), type = "int";
 		if (type == "integer")  type = "int";  // normalize type name
-		if (expect("'[ ']"))  isarray = 1;  // array type
-			typecheck(type), namecollision(name);
+		// save dim info
+		typecheck(type), namecollision(name);
 			if    (!cfuncname.length())  globals[name] = { name, type, isarray };
 			else  functions.at(cfuncname).locals[name] = { name, type, isarray };
 		p.pushlist().pushtokens({ "dim", name, type });
+		// handle array definition
+		if (expect("'[")) {
+			isarray = 1;
+			if (expect("@integer"))  len = stoi(presults.at(0));  // if omitted use length 0
+			require("']");
+		}
 		// allocate complex types
 		if (isarray || type != "int") {
 			string loc = cfuncname.length() ? "local" : "global";
 			auto& ma = setup.pushlist();
 			auto& fr = teardown.pushlist();
 			if (isarray)
-				ma.pushtokens({ "arrmalloc", loc, name, type }),  ma.pushint(0);
-				// fr.pushtokens({ "arrfree",   loc, name, type });
+				ma.pushtokens({ "arrmalloc", loc, name, type }),  ma.pushint(len),
+				fr.pushtokens({ "free",      loc, name, type });  // arrfree?
 			else
-				ma.pushtokens({ "malloc",    loc, name, type });
-				// fr.pushtokens({ "free",      loc, name, type });
-			fr.pushtokens({ "free",      loc, name, type });
+				ma.pushtokens({ "malloc",    loc, name, type }),
+				fr.pushtokens({ "free",      loc, name, type });
 		}
 		// end dim
-		nextline();
+		require("endl"), nextline();
 	}
 
 	void p_function(Node& p) {

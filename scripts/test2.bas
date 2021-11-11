@@ -1,3 +1,4 @@
 function main()
-	dim a[]
+	dim a[100]
+
 end function
