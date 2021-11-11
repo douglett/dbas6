@@ -63,6 +63,8 @@ int is_strliteral(const string& s) {
 int is_arraytype(const string& s) {
 	return s.length() >= 3 && s[s.length()-2] == '[' && s[s.length()-1] == ']';
 }
+// int is_reftype(const string& s) {
+// int is_arrreftype(const string& s) {
 string basetype(const string& s) {
 	return is_arraytype(s) ? s.substr(0, s.length()-2) : s;
 }

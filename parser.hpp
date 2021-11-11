@@ -9,7 +9,7 @@ using namespace std;
 
 
 struct Prog {
-	struct Dim  { string name, type; int isarray; };
+	struct Dim  { string name, type; };
 	struct Type { string name; map<string, Dim> members; };
 	struct Func { string name; map<string, Dim> args, locals; };
 };
@@ -88,17 +88,19 @@ struct Parser : InputFile {
 		if      (expect("'dim @identifier @identifier"))  name = presults.at(1), type = presults.at(0);
 		else if (require("'dim @identifier"))  name = presults.at(0), type = "int";
 		if (type == "integer")  type = "int";  // normalize type name
-		// save dim info
-		typecheck(type), namecollision(name);
-			if    (!cfuncname.length())  globals[name] = { name, type, isarray };
-			else  functions.at(cfuncname).locals[name] = { name, type, isarray };
-		p.pushlist().pushtokens({ "dim", name, type });
+		typecheck(type);
+		namecollision(name);
 		// handle array definition
 		if (expect("'[")) {
 			isarray = 1;
+			type += "[]";
 			if (expect("@integer"))  len = stoi(presults.at(0));  // if omitted use length 0
 			require("']");
 		}
+		// save dim info
+		if    (!cfuncname.length())  globals[name] = { name, type };
+		else  functions.at(cfuncname).locals[name] = { name, type };
+		p.pushlist().pushtokens({ "dim", name, type });
 		// allocate complex types
 		if (isarray || type != "int") {
 			string loc = cfuncname.length() ? "local" : "global";
@@ -419,12 +421,14 @@ struct Parser : InputFile {
 	}
 	
 	string p_varpath_arrpos(const string& type, Node& p) {
+		if (!is_arraytype(type))  error2("p_varpath_arrpos");
 		require("'[");
 		auto& l = p.pushcmdlist("get_arraypos");
 			p_intexpr(l);
-			l.pushtoken(type);
+			l.pushtoken(basetype(type));
 		require("']");
-		return type;
+		l.show();
+		return basetype(type);
 	}
 
 	string p_varpath_set(Node& p) {

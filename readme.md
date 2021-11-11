@@ -8,19 +8,20 @@ WIP basic (again)
 
 TODO:
 -----
-- check if isarray causing problems, otherwise use type[]
-- varpath
-	- arrays
-	- array / object chains
+- varpath array / object chains
 - single line multi-dim
 - dim with initialise (int / string)
 - call statements
+	- variant types
+	- implement non-owner pointer types
 	- argument type checking
 - for loops
 - function hoisting
 
 DONE:
 -----
+- varpath arrays
+- switch from isarray to type[]
 - dim arrays
 - auto malloc / free
 	- user type automalloc

@@ -5,7 +5,7 @@ using namespace std;
 
 struct Runtime {
 	struct StackFrame { map<string, int32_t> vars; };
-	struct HeapObject { int32_t index; string type; int32_t isarray; vector<int32_t> data; };
+	struct HeapObject { int32_t index; string type; vector<int32_t> data; };
 	Node prog;
 	StackFrame globals;
 	vector<StackFrame> frames;
@@ -285,13 +285,13 @@ struct Runtime {
 	int32_t mem_arrmalloc(const string& type, int32_t len) {
 		int32_t ptr = ++heap_top;
 		// string arrtype = type+"[]";
-		heap[ptr] = { ptr, type, 1 };
-		printf("arrmalloc:   %03d   %s[] \n", ptr, type.c_str() );
+		heap[ptr] = { ptr, type };
+		printf("arrmalloc:   %03d   %s \n", ptr, type.c_str() );
 		// allocate each member
 		heap[ptr].data.resize(len);
-		if (type != "int")
+		if (basetype(type) != "int")
 			for (int32_t i = 0; i < len; i++)
-				heap[ptr].data[i] = mem_malloc(type);
+				heap[ptr].data[i] = mem_malloc(basetype(type));
 		return ptr;
 	}
 
@@ -300,8 +300,8 @@ struct Runtime {
 		int32_t offset = 0;
 		// recursively deallocate members
 
-		if (desc.isarray && desc.type == "int") ;  // free not needed
-		else if (desc.isarray)
+		if (is_arraytype(desc.type) && basetype(desc.type) == "int") ;  // free not needed
+		else if (is_arraytype(desc.type))
 			for (int32_t ptr : desc.data)
 				mem_free( ptr );
 		else if (desc.type == "string") ;  // no inner members
