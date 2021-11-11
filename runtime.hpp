@@ -5,7 +5,7 @@ using namespace std;
 
 struct Runtime {
 	struct StackFrame { map<string, int32_t> vars; };
-	struct HeapObject { int32_t index; string type; vector<int32_t> data; };
+	struct HeapObject { int32_t index; string type; int32_t isarray; vector<int32_t> data; };
 	Node prog;
 	StackFrame globals;
 	vector<StackFrame> frames;
@@ -85,8 +85,10 @@ struct Runtime {
 		for (auto& n : blk.list)
 			if      (n.tok == "setup")         ;  // ignore this
 			else if (n.tok == "teardown")      ;  // ignore
-			else if (n.cmd() == "malloc")      r_malloc(n.tokat(1), n.tokat(2), n.tokat(3));
-			else if (n.cmd() == "free")        r_free(n.tokat(1), n.tokat(2));
+			else if (n.cmd() == "malloc")      r_malloc    ( n.tokat(1), n.tokat(2), n.tokat(3) );
+			else if (n.cmd() == "arrmalloc")   r_arrmalloc ( n.tokat(1), n.tokat(2), n.tokat(3), n.at(4).i );
+			else if (n.cmd() == "free")        r_free      ( n.tokat(1), n.tokat(2) );
+			// else if (n.cmd() == "arrfree")     r_arrfree   ( n.tokat(1), n.tokat(2) );
 			else    error2("special block error: "+n.cmd());
 	}
 
@@ -152,7 +154,7 @@ struct Runtime {
 		// format: cmd, varpath, vpath_type, expr
 		if      (n.cmd() == "set_global")     globals.vars.at(n.tokat(1)) = r_expr(n.at(3));
 		else if (n.cmd() == "set_local")      frames.back().vars.at(n.tokat(1))  = r_expr(n.at(3));
-		else if (n.cmd() == "set_property")   r_mem_deref( n.tokat(1), r_expr(n.at(3)) ) = r_expr(n.at(4));
+		else if (n.cmd() == "set_property")   heapat( r_expr(n.at(3)), n.tokat(1) ) = r_expr(n.at(4));
 		else    error2("set error");
 	}
 	
@@ -197,7 +199,7 @@ struct Runtime {
 		else if (n.cmd() == "div")            return r_expr(n.at(1)) /  r_expr(n.at(2));
 		else if (n.cmd() == "get_global")     return globals.vars.at(n.tokat(1));
 		else if (n.cmd() == "get_local")      return frames.back().vars.at(n.tokat(1));
-		else if (n.cmd() == "get_property")   return r_mem_deref( n.tokat(1), r_expr(n.at(3)) );
+		else if (n.cmd() == "get_property")   return heapat( r_expr(n.at(3)), n.tokat(1) );
 		else if (n.cmd() == "strcmp")         return r_strexpr(n.at(1)) == r_strexpr(n.at(2));
 		else if (n.cmd() == "strncmp")        return r_strexpr(n.at(1)) != r_strexpr(n.at(2));
 		else if (n.cmd() == "call")           return r_call(n);
@@ -211,18 +213,31 @@ struct Runtime {
 	// --- Special runtime functions ---
 
 	void r_malloc(const string& locality, const string& name, const string& type) {
-		auto ptr = r_mem_malloc(type);		
+		auto ptr = mem_malloc(type);
 		if      (locality == "global")  globals.vars.at(name) = ptr;
 		else if (locality == "local")   frames.back().vars.at(name) = ptr;
 		else    error2("malloc error");
+	}
+	void r_arrmalloc(const string& locality, const string& name, const string& type, int32_t length) {
+		auto ptr = mem_arrmalloc(type, length);
+		if      (locality == "global")  globals.vars.at(name) = ptr;
+		else if (locality == "local")   frames.back().vars.at(name) = ptr;
+		else    error2("arrmalloc error");
 	}
 	void r_free(const string& locality, const string& name) {
 		int32_t ptr = 0;
 		if      (locality == "global")  ptr = globals.vars.at(name);
 		else if (locality == "local")   ptr = frames.back().vars.at(name);
 		else    error2("free error");
-		r_mem_free(ptr);
+		mem_free(ptr);
 	}
+	// void r_arrfree(const string& locality, const string& name) {
+	// 	int32_t ptr = 0;
+	// 	if      (locality == "global")  ptr = globals.vars.at(name);
+	// 	else if (locality == "local")   ptr = frames.back().vars.at(name);
+	// 	else    error2("arrfree error");
+	// 	mem_free(ptr);
+	// }
 	string ptr_to_string(int32_t ptr) {
 		string s;
 		for (auto c : heap.at(ptr).data)
@@ -234,10 +249,22 @@ struct Runtime {
 
 	// --- Internal memory management ---
 
-	int32_t r_mem_malloc(const string& type) {
+	HeapObject& heapdesc(int32_t ptr) {
+		try                    { return heap.at(ptr); }
+		catch (out_of_range e) { error2("memory fault at: "+ to_string(ptr));  throw DBRunError(); }
+	}
+	int32_t& heapat(int32_t ptr, int32_t offset) {
+		try                    { return heap.at(ptr).data.at(offset); }
+		catch (out_of_range e) { error2("memory fault at: "+ to_string(ptr));  throw DBRunError(); }
+	}
+	int32_t& heapat(int32_t ptr, const string& prop) {
+		return heapat( ptr, defines.at(prop) );
+	}
+
+	int32_t mem_malloc(const string& type) {
 		int32_t ptr = ++heap_top;
 		heap[ptr] = { ptr, type };
-		// printf("malloc:   %03d   %s \n", ptr, type.c_str() );
+		printf("malloc:      %03d   %s \n", ptr, type.c_str() );
 		int32_t data = 0;
 		// recursively allocate members 
 		if (type == "string") ;  // no inner members
@@ -245,36 +272,80 @@ struct Runtime {
 			for (auto& d : findtype(type).list)
 				if (d.cmd() == "dim") {
 					if    (d.tokat(2) == "int")  data = 0;
-					else  data = r_mem_malloc( d.tokat(2) );
-					heap.at(ptr).data.push_back( data );
+					else  data = mem_malloc( d.tokat(2) );
+					heap[ptr].data.push_back( data );
 				}
 		// return ptr address
 		return ptr;
 	}
 
-	int32_t r_mem_free(int32_t ptr) {
-		if (ptr <= 0 || !heap.count(ptr))  error2("free fault at: "+ to_string(ptr));
-		auto type = heap.at(ptr).type;
+	int32_t mem_arrmalloc(const string& type, int32_t len) {
+		int32_t ptr = ++heap_top;
+		// string arrtype = type+"[]";
+		heap[ptr] = { ptr, type, 1 };
+		printf("arrmalloc:   %03d   %s[] \n", ptr, type.c_str() );
+		// allocate each member
+		heap[ptr].data.resize(len);
+		if (type != "int")
+			for (int32_t i = 0; i < len; i++)
+				heap[ptr].data[i] = mem_malloc(type);
+		return ptr;
+	}
+
+	void mem_free(int32_t ptr) {
+		auto desc = heapdesc(ptr);
 		int32_t offset = 0;
 		// recursively deallocate members
-		if (type == "string") ;  // no inner members
+
+		if (desc.isarray && desc.type == "int") ;  // free not needed
+		else if (desc.isarray)
+			for (int32_t ptr : desc.data)
+				mem_free( ptr );
+		else if (desc.type == "string") ;  // no inner members
+		
+		// if (desc.type == "string") ;  // no inner members
 		else
-			for (auto& d : findtype(type).list)
+			for (auto& d : findtype(desc.type).list)
 				if (d.cmd() == "dim") {
-					if   (d.tokat(2) == "int") ;
-					else r_mem_free( heap.at(ptr).data.at(offset) );
+					if    (d.tokat(2) == "int") ;
+					else  mem_free( heapat(ptr, offset) );
 					offset++;
 				}
 		// deallocate this
-		// printf("free:     %03d   %s \n", ptr, type.c_str() );
-		return heap.erase(ptr), 0;
+		printf("free:        %03d   %s \n", ptr, heapdesc(ptr).type.c_str() );
+		heap.erase(ptr);
 	}
 
-	int32_t& r_mem_deref(const string& prop, int32_t ptr) {
-		if (ptr <= 0 || !heap.count(ptr))  error2("deref fault at: "+ to_string(ptr));
-		int32_t offset = defines.at(prop);
-		return heap.at(ptr).data.at(offset);
-	}
+	// void mem_arrfree(int32_t ptr) {
+	// 	auto desc = heapdesc(ptr);
+	// 	if (!desc.isarray)  error2("mem_arrfree");
+	// 	int32_t offset = 0;
+	// 	// deallocate each member
+	// 	if (desc.type == "int") ;
+	// 	else
+	// 		for (int32_t ptr : desc.data)
+	// 			mem_free( ptr );
+	// 	// deallocate this
+	// 	printf("arrfree:     %03d   %s[] \n", ptr, heapdesc(ptr).type.c_str() );
+	// 	heap.erase(ptr);
+	// }
+
+	// void mem_resize(int32_t ptr, int32_t newlen) {
+	// 	auto arrtype   = heap.at(ptr).type;
+	// 	auto type      = arrtype.substr(0, arrtype.length()-2);
+	// 	int32_t oldlen = heap.at(ptr).data.size();
+	// 	if (arrtype != type+"[]")  error2("r_mem_push");
+	// 	// if newlen is shorter, free memory
+	// 	if (type != "int")
+	// 		for (int32_t i = newlen-1; i >= oldlen; i--)
+	// 			mem_free( heap.at(ptr).data[i] );
+	// 	// resize
+	// 	heap.at(ptr).data.resize(newlen, 0);
+	// 	// if newlen is longer, construct new memory
+	// 	if (type != "int")
+	// 		for (int32_t i = oldlen; i < newlen; i++)
+	// 			heap.at(ptr).data[i] = mem_malloc(type);
+	// }
 
 
 

@@ -8,22 +8,22 @@ WIP basic (again)
 
 TODO:
 -----
-- dim arrays
-- single line multi-dim
-- dim with initialise (int / string)
 - varpath
 	- arrays
 	- array / object chains
+- single line multi-dim
+- dim with initialise (int / string)
 - call statements
 	- argument type checking
-- auto malloc / free
-	- user type automalloc
-	- arrmalloc
 - for loops
 - function hoisting
 
 DONE:
 -----
+- dim arrays
+- auto malloc / free
+	- user type automalloc
+	- arrmalloc
 - varpath
 	- cleanup
 	- object properties

@@ -9,7 +9,7 @@ using namespace std;
 
 
 struct Prog {
-	struct Dim  { string name, type; };
+	struct Dim  { string name, type; int isarray; };
 	struct Type { string name; map<string, Dim> members; };
 	struct Func { string name; map<string, Dim> args, locals; };
 };
@@ -84,20 +84,27 @@ struct Parser : InputFile {
 	
 	void p_dim(Node& p) {
 		string name, type;
-		if      (expect("'dim @identifier @identifier endl"))  name = presults.at(1), type = presults.at(0);
-		else if (require("'dim @identifier endl"))  name = presults.at(0), type = "int";
+		int isarray = 0;
+		if      (expect("'dim @identifier @identifier"))  name = presults.at(1), type = presults.at(0);
+		else if (require("'dim @identifier"))  name = presults.at(0), type = "int";
 		if (type == "integer")  type = "int";  // normalize type name
+		if (expect("'[ ']"))  isarray = 1;  // array type
 			typecheck(type), namecollision(name);
-			if    (!cfuncname.length())  globals[name] = { name, type };
-			else  functions.at(cfuncname).locals[name] = { name, type };
+			if    (!cfuncname.length())  globals[name] = { name, type, isarray };
+			else  functions.at(cfuncname).locals[name] = { name, type, isarray };
 		p.pushlist().pushtokens({ "dim", name, type });
 		// allocate complex types
-		if (type != "int") {
+		if (isarray || type != "int") {
 			string loc = cfuncname.length() ? "local" : "global";
 			auto& ma = setup.pushlist();
-				ma.pushtokens({ "malloc", loc, name, type });
 			auto& fr = teardown.pushlist();
-				fr.pushtokens({ "free",   loc, name, type });
+			if (isarray)
+				ma.pushtokens({ "arrmalloc", loc, name, type }),  ma.pushint(0);
+				// fr.pushtokens({ "arrfree",   loc, name, type });
+			else
+				ma.pushtokens({ "malloc",    loc, name, type });
+				// fr.pushtokens({ "free",      loc, name, type });
+			fr.pushtokens({ "free",      loc, name, type });
 		}
 		// end dim
 		nextline();
