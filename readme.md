@@ -8,18 +8,20 @@ WIP basic (again)
 
 TODO:
 -----
-- varpath array / object chains
-- single line multi-dim
-- dim with initialise (int / string)
+- input command
+- malloc / memmalloc merge?
 - call statements
 	- variant types
 	- implement non-owner pointer types
 	- argument type checking
+- dim with initialise (int / string)
+- single line multi-dim
 - for loops
 - function hoisting
 
 DONE:
 -----
+- varpath array / object chains
 - varpath arrays
 - switch from isarray to type[]
 - dim arrays

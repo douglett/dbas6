@@ -1,8 +1,10 @@
-function main()
-	dim a[100]
-	dim b
+type T
+	dim string s
+end type
 
-	let a[1] = 100
-	let b = a[1]
-	print a[1], a[2], b
+function main()
+	dim T t[2]
+	let t[1].s = "hello world"
+
+	print "here", t[1].s
 end function

@@ -174,10 +174,12 @@ struct Runtime {
 	// --- Expressions ---
 
 	string r_strexpr(const Node& n) {
-		if      (n.type == NT_STRLITERAL)  return n.tok;
-		else if (n.cmd() == "strcat")      return r_strexpr(n.at(1)) + r_strexpr(n.at(2));
-		else if (n.cmd() == "get_global")  return ptr_to_string( r_expr(n) );
-		else if (n.cmd() == "get_local")   return ptr_to_string( r_expr(n) );
+		if      (n.type == NT_STRLITERAL)     return n.tok;
+		else if (n.cmd() == "strcat")         return r_strexpr(n.at(1)) + r_strexpr(n.at(2));
+		else if (n.cmd() == "get_global")     return ptr_to_string( r_expr(n) );
+		else if (n.cmd() == "get_local")      return ptr_to_string( r_expr(n) );
+		else if (n.cmd() == "get_property")   return ptr_to_string( r_expr(n) );
+		else if (n.cmd() == "get_arraypos")   return ptr_to_string( r_expr(n) );
 		
 		printf(">> strexpr error\n"), n.show();
 		return error2("strexpr error"), "nil";
