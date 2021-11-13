@@ -1,10 +1,16 @@
-type T
-	dim string s
+type Shape
+	dim string name
+	dim int length
 end type
 
-function main()
-	dim T t[2]
-	let t[1].s = "hello world"
+function push(Shape@ s)
+end function
 
-	print "here", t[1].s
+function main()
+	dim Shape sh[2]
+	let sh[1].name = "hello world"
+
+	print "here", sh[1].name
+
+	call push(1)
 end function

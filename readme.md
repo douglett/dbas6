@@ -8,12 +8,14 @@ WIP basic (again)
 
 TODO:
 -----
-- input command
-- malloc / memmalloc merge?
 - call statements
 	- variant types
 	- implement non-owner pointer types
 	- argument type checking
+	- predefined standard library functions
+		- special hidden multi-type arguments (any array, array/string, etc)
+- input command
+- malloc / memmalloc merge?
 - dim with initialise (int / string)
 - single line multi-dim
 - for loops

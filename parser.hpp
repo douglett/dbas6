@@ -84,15 +84,13 @@ struct Parser : InputFile {
 	
 	void p_dim(Node& p) {
 		string name, type;
-		int32_t isarray = 0, len = 0;
+		int32_t len = 0;
 		if      (expect("'dim @identifier @identifier"))  name = presults.at(1), type = presults.at(0);
 		else if (require("'dim @identifier"))  name = presults.at(0), type = "int";
 		if (type == "integer")  type = "int";  // normalize type name
-		typecheck(type);
-		namecollision(name);
+		typecheck(type), namecollision(name);
 		// handle array definition
 		if (expect("'[")) {
-			isarray = 1;
 			type += "[]";
 			if (expect("@integer"))  len = stoi(presults.at(0));  // if omitted use length 0
 			require("']");
@@ -102,11 +100,11 @@ struct Parser : InputFile {
 		else  functions.at(cfuncname).locals[name] = { name, type };
 		p.pushlist().pushtokens({ "dim", name, type });
 		// allocate complex types
-		if (isarray || type != "int") {
+		if (type != "int") {
 			string loc = cfuncname.length() ? "local" : "global";
 			auto& ma = setup.pushlist();
 			auto& fr = teardown.pushlist();
-			if (isarray)
+			if (is_arraytype(type))
 				ma.pushtokens({ "arrmalloc", loc, name, type }),  ma.pushint(len),
 				fr.pushtokens({ "free",      loc, name, type });  // arrfree?
 			else
@@ -129,12 +127,13 @@ struct Parser : InputFile {
 		teardown = Node::CmdList("teardown");
 		// arguments
 		auto& args = fn.pushcmdlist("args");
+		string name, type;
 		while (!eol()) {
-			string name, type;
-			if (!expect("@identifier @identifier"))  break;
-			name = presults.at(1), type = presults.at(0);
-			if (type != "int")  error2("TODO: non-int types");
-				typecheck(type), namecollision(name);
+			if      (expect("@identifier @identifier"))     name = presults.at(1), type = presults.at(0);
+			else if (expect("@identifier '& @identifier"))  name = presults.at(1), type = presults.at(0) + "&";
+			else if (expect("@identifier '@ @identifier"))  name = presults.at(1), type = presults.at(0) + "@";
+			else    break;
+			typecheck(basetype(type)), namecollision(name);
 				functions.at(cfuncname).args[name] = { name, type };  // save argument
 				args.pushlist().pushtokens({ "dim", name, type });
 			if (peek("')"))  break;
@@ -366,13 +365,20 @@ struct Parser : InputFile {
 		if (!functions.count(fname))  error2("missing function");
 		auto& l = p.pushlist();
 			l.pushtokens({ "call", fname });
-		auto& args = l.pushlist();
+		auto& fargs = functions.at(fname).args;
+		auto& args  = l.pushlist();
+		int argc    = 0;
 		while (!eol() && !peek("')")) {
-			p_intexpr(args);
+			auto t = p_anyexpr(args);
+			argc++;
+
+			// if (fargs.at(argc-1).second.type != t)  error2("p_expr_call argtype");
+			printf("TODO: function argument order\n");
+
 			if (!expect("',"))  break;
 		}
+		if (argc != fargs.size())  error2("p_expr_call argcount");
 		require("')");
-		if (functions.at(fname).args.size() != args.list.size())  error();
 		return "int";
 	}
 
@@ -427,7 +433,6 @@ struct Parser : InputFile {
 			p_intexpr(l);
 			l.pushtoken(basetype(type));
 		require("']");
-		l.show();
 		return basetype(type);
 	}
 
