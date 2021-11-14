@@ -9,7 +9,7 @@ using namespace std;
 
 
 struct Prog {
-	struct Dim  { string name, type; };
+	struct Dim  { string name, type; int index; };
 	struct Type { string name; map<string, Dim> members; };
 	struct Func { string name; map<string, Dim> args, locals; };
 };
@@ -129,12 +129,12 @@ struct Parser : InputFile {
 		auto& args = fn.pushcmdlist("args");
 		string name, type;
 		while (!eol()) {
-			if      (expect("@identifier @identifier"))     name = presults.at(1), type = presults.at(0);
-			else if (expect("@identifier '& @identifier"))  name = presults.at(1), type = presults.at(0) + "&";
-			else if (expect("@identifier '@ @identifier"))  name = presults.at(1), type = presults.at(0) + "@";
+			if      (expect("@identifier @identifier '[ ']"))  name = presults.at(1), type = presults.at(0) + "[]";
+			else if (expect("@identifier @identifier"))        name = presults.at(1), type = presults.at(0);
 			else    break;
 			typecheck(basetype(type)), namecollision(name);
-				functions.at(cfuncname).args[name] = { name, type };  // save argument
+				int argc = functions.at(cfuncname).args.size();
+				functions.at(cfuncname).args[name] = { name, type, argc };  // save argument
 				args.pushlist().pushtokens({ "dim", name, type });
 			if (peek("')"))  break;
 			require("',");
@@ -365,19 +365,16 @@ struct Parser : InputFile {
 		if (!functions.count(fname))  error2("missing function");
 		auto& l = p.pushlist();
 			l.pushtokens({ "call", fname });
-		auto& fargs = functions.at(fname).args;
+		// auto& fargs = functions.at(fname).args;
 		auto& args  = l.pushlist();
 		int argc    = 0;
 		while (!eol() && !peek("')")) {
 			auto t = p_anyexpr(args);
 			argc++;
-
-			// if (fargs.at(argc-1).second.type != t)  error2("p_expr_call argtype");
-			printf("TODO: function argument order\n");
-
+			if (argat(fname, argc-1).type != t)  error2("p_expr_call argtype");
 			if (!expect("',"))  break;
 		}
-		if (argc != fargs.size())  error2("p_expr_call argcount");
+		if (argc != functions.at(fname).args.size())  error2("p_expr_call argcount");
 		require("')");
 		return "int";
 	}
@@ -490,5 +487,11 @@ struct Parser : InputFile {
 			if (functions.at(cfuncname).locals.count(name))  error();
 		}
 		else    { if (globals.count(name))  error(); }
+	}
+	const Prog::Dim& argat(const string& fname, int index) {
+		for (const auto& d : functions.at(fname).args)
+			if (d.second.index == index)  return d.second;
+		error2("missing argument "+to_string(index));
+		throw DBError();
 	}
 };

@@ -3,7 +3,8 @@ type Shape
 	dim int length
 end type
 
-function push(Shape@ s)
+function push(Shape s[])
+	print "here2", s[1].name
 end function
 
 function main()
@@ -12,5 +13,5 @@ function main()
 
 	print "here", sh[1].name
 
-	call push(1)
+	call push(sh)
 end function
