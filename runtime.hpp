@@ -107,6 +107,7 @@ struct Runtime {
 			else if (n.cmd() == "set_property")   r_set(n);
 			else if (n.cmd() == "set_arraypos")   r_set(n);
 			else if (n.cmd() == "strcpy")         r_strcpy(n);
+			// else if (n.cmd() == "memcpy")         r_memcpy(n);
 			else    error2("block error: "+n.cmd());
 	}
 
@@ -163,10 +164,10 @@ struct Runtime {
 	void r_strcpy(const Node& n) {
 		int32_t ptr = r_expr(n.at(1));
 		string s    = r_strexpr(n.at(2));
-		auto& data  = heap.at(ptr).data;
-		data.resize(s.length());
+		auto& d     = heapdesc(ptr);
+		d.data.resize(s.length());
 		for (int i = 0; i < s.length(); i++)
-			data[i] = s[i];
+			d.data[i] = s[i];
 	}
 
 
@@ -207,6 +208,8 @@ struct Runtime {
 		else if (n.cmd() == "get_arraypos")   return heapat( r_expr(n.at(3)), r_expr(n.at(1)) );
 		else if (n.cmd() == "strcmp")         return r_strexpr(n.at(1)) == r_strexpr(n.at(2));
 		else if (n.cmd() == "strncmp")        return r_strexpr(n.at(1)) != r_strexpr(n.at(2));
+		else if (n.cmd() == "strlen")         return heapdesc( r_expr(n.at(1)) ).data.size();
+		else if (n.cmd() == "sizeof")         return heapdesc( r_expr(n.at(1)) ).data.size();
 		else if (n.cmd() == "call")           return r_call(n);
 
 		printf(">> expr error\n"), n.show();
@@ -245,7 +248,7 @@ struct Runtime {
 	// }
 	string ptr_to_string(int32_t ptr) {
 		string s;
-		for (auto c : heap.at(ptr).data)
+		for (auto c : heapdesc(ptr).data)
 			s += char(c);
 		return s;
 	}

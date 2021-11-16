@@ -3,9 +3,15 @@ type Shape
 	dim int length
 end type
 
-function push(Shape s[])
-	print "here2", s[1].name
+function push(Shape s[], Shape ss)
+	print "here2"; s[1].name; ss.name
+	# dim len = sizeof(s)
+	# redim s[len+1]
+	# let s[len] = ss
+	# return len+1
 end function
+
+# function pop($array s)
 
 function main()
 	dim Shape sh[2]
@@ -13,5 +19,14 @@ function main()
 
 	print "here", sh[1].name
 
-	call push(sh)
+	call push(sh, sh[1])
+
+	print "blahblah", len(sh), len(sh[1].name)
+
+	# redim sh, 2
+	# push sh, s
+	# pop sh, s
+	# insert sh, 1, s
+	# slice sh, 1, s
+
 end function

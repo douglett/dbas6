@@ -360,12 +360,23 @@ struct Parser : InputFile {
 	}
 
 	string p_expr_call(Node& p) {
+		static const vector<string> SPECIAL_FUNCTIONS = { "len" };
+		peek("@identifier");
+		auto fname = presults.at(0);
+		// check for special std language functions
+		for (auto& fn : SPECIAL_FUNCTIONS)
+			if (fn == fname)
+				return p_expr_callspecial(p);
+		// parse as user function
+		return p_expr_calluser(p);
+	}
+
+	string p_expr_calluser(Node& p) {
 		require("@identifier '(");
 		auto fname = presults.at(0);
 		if (!functions.count(fname))  error2("missing function");
 		auto& l = p.pushlist();
 			l.pushtokens({ "call", fname });
-		// auto& fargs = functions.at(fname).args;
 		auto& args  = l.pushlist();
 		int argc    = 0;
 		while (!eol() && !peek("')")) {
@@ -377,6 +388,21 @@ struct Parser : InputFile {
 		if (argc != functions.at(fname).args.size())  error2("p_expr_call argcount");
 		require("')");
 		return "int";
+	}
+
+	string p_expr_callspecial(Node& p) {
+		require("@identifier '(");
+		auto fname = presults.at(0);
+		if (fname == "len") {
+			auto& l = p.pushcmdlist("sizeof");
+			auto t = p_anyexpr(l);
+			if      (is_arraytype(t)) ;
+			else if (t == "string")  l.at(0).tok = "strlen";
+			else    goto _err;
+		}
+		require("')");
+		return "int";
+		_err:  return error2("p_expr_callspecial error"), "nil";
 	}
 
 	string p_varpath(Node& p) {

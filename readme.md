@@ -9,20 +9,29 @@ WIP basic (again)
 TODO:
 -----
 - call statements
-	- variant types
-	- implement non-owner pointer types
-	- argument type checking
 	- predefined standard library functions
 		- special hidden multi-type arguments (any array, array/string, etc)
+		- array resize
+		- push, pop
+		- insert, erase
+	- argument syntax? @ / &
 - input command
 - malloc / memmalloc merge?
+- for loops
 - dim with initialise (int / string)
 - single line multi-dim
-- for loops
+- dim syntax for arrays?
+	- int[] a(100)  vs  int a[100]
 - function hoisting
+- consts
+- argument consts
 
 DONE:
 -----
+- call statements
+	- variant types
+	- implement non-owner pointer types
+	- argument type checking
 - varpath array / object chains
 - varpath arrays
 - switch from isarray to type[]
