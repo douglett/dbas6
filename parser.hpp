@@ -84,17 +84,15 @@ struct Parser : InputFile {
 	
 	void p_dim(Node& p) {
 		string name, type;
-		int32_t len = 0;
-		if      (expect("'dim @identifier @identifier"))  name = presults.at(1), type = presults.at(0);
-		else if (require("'dim @identifier"))  name = presults.at(0), type = "int";
+		Node tmp(NT_LIST);
+		if      (expect("'dim @identifier @identifier"))         name = presults.at(1), type = presults.at(0);
+		else if (expect("'dim @identifier '[ '] @identifier"))   name = presults.at(1), type = presults.at(0) + "[]";
+		else if (require("'dim @identifier"))                    name = presults.at(0), type = "int";
 		if (type == "integer")  type = "int";  // normalize type name
 		typecheck(type), namecollision(name);
 		// handle array definition
-		if (expect("'[")) {
-			type += "[]";
-			if (expect("@integer"))  len = stoi(presults.at(0));  // if omitted use length 0
-			require("']");
-		}
+		if    (is_arraytype(type) && expect("'("))  p_intexpr(tmp), require("')");
+		else  tmp.pushint(0);  // default array size
 		// save dim info
 		if    (!cfuncname.length())  globals[name] = { name, type };
 		else  functions.at(cfuncname).locals[name] = { name, type };
@@ -105,7 +103,7 @@ struct Parser : InputFile {
 			auto& ma = setup.pushlist();
 			auto& fr = teardown.pushlist();
 			if (is_arraytype(type))
-				ma.pushtokens({ "arrmalloc", loc, name, type }),  ma.pushint(len),
+				ma.pushtokens({ "arrmalloc", loc, name, type }),  ma.push(tmp.back()),
 				fr.pushtokens({ "free",      loc, name, type });  // arrfree?
 			else
 				ma.pushtokens({ "malloc",    loc, name, type }),
@@ -129,10 +127,10 @@ struct Parser : InputFile {
 		auto& args = fn.pushcmdlist("args");
 		string name, type;
 		while (!eol()) {
-			if      (expect("@identifier @identifier '[ ']"))  name = presults.at(1), type = presults.at(0) + "[]";
+			if      (expect("@identifier '[ '] @identifier"))  name = presults.at(1), type = presults.at(0) + "[]";
 			else if (expect("@identifier @identifier"))        name = presults.at(1), type = presults.at(0);
 			else    break;
-			typecheck(basetype(type)), namecollision(name);
+			typecheck(type), namecollision(name);
 				int argc = functions.at(cfuncname).args.size();
 				functions.at(cfuncname).args[name] = { name, type, argc };  // save argument
 				args.pushlist().pushtokens({ "dim", name, type });
@@ -529,7 +527,8 @@ struct Parser : InputFile {
 		throw d;
 	}
 	void typecheck(const string& type) {
-		if (type != "int" && type != "string" && types.count(type) == 0)  error();
+		auto btype = basetype(type);
+		if (btype != "int" && btype != "string" && types.count(btype) == 0)  error();
 		if (ctypename == type)  error2("typecheck; circular definition");
 	}
 	void namecollision(const string& name) {
