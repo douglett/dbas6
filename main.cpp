@@ -24,11 +24,13 @@ int main() {
 	// inputtest();
 
 	Parser p;
-	p.load("scripts/test2.bas");
+	// p.load("scripts/test2.bas");
+	p.load("scripts/advent.bas");
 	p.p_program();
 	p.prog.show();
 	printf("---\n");
 
 	Runtime r(p.prog);
+	// r.flag_memtrace = 1;
 	r.r_prog();
 }

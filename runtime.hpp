@@ -13,7 +13,7 @@ struct Runtime {
 	map<string, int32_t> defines;
 	int32_t heap_top = 0;
 	// runtime flags
-	int32_t flag_while = 0, flag_memtrace = 1;
+	int32_t flag_while = 0, flag_memtrace = 0;
 
 	// --- Init ---
 	Runtime(const Node& _prog) : prog(_prog) { }
