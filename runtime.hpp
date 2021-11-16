@@ -12,7 +12,8 @@ struct Runtime {
 	map<int32_t, HeapObject> heap;
 	map<string, int32_t> defines;
 	int32_t heap_top = 0;
-	int32_t flag_while = 0;  // runtime flags
+	// runtime flags
+	int32_t flag_while = 0, flag_memtrace = 1;
 
 	// --- Init ---
 	Runtime(const Node& _prog) : prog(_prog) { }
@@ -108,6 +109,7 @@ struct Runtime {
 			else if (n.cmd() == "set_arraypos")   r_set(n);
 			else if (n.cmd() == "strcpy")         r_strcpy(n);
 			// else if (n.cmd() == "memcpy")         r_memcpy(n);
+			else if (n.cmd() == "redim")          r_redim(n);
 			else    error2("block error: "+n.cmd());
 	}
 
@@ -168,6 +170,12 @@ struct Runtime {
 		d.data.resize(s.length());
 		for (int i = 0; i < s.length(); i++)
 			d.data[i] = s[i];
+	}
+
+	void r_redim(const Node& n) {
+		int32_t ptr = r_expr(n.at(1));
+		int32_t len = r_expr(n.at(2));
+		mem_resize(ptr, len);
 	}
 
 
@@ -272,7 +280,8 @@ struct Runtime {
 	int32_t mem_malloc(const string& type) {
 		int32_t ptr = ++heap_top;
 		heap[ptr] = { ptr, type };
-		printf("malloc:      %03d   %s \n", ptr, type.c_str() );
+		if (flag_memtrace)
+			printf("malloc:      %03d   %s \n", ptr, type.c_str() );
 		int32_t data = 0;
 		// recursively allocate members 
 		if (type == "string") ;  // no inner members
@@ -291,7 +300,8 @@ struct Runtime {
 		int32_t ptr = ++heap_top;
 		// string arrtype = type+"[]";
 		heap[ptr] = { ptr, type };
-		printf("arrmalloc:   %03d   %s \n", ptr, type.c_str() );
+		if (flag_memtrace)
+			printf("arrmalloc:   %03d   %s \n", ptr, type.c_str() );
 		// allocate each member
 		heap[ptr].data.resize(len);
 		if (basetype(type) != "int")
@@ -320,7 +330,8 @@ struct Runtime {
 					offset++;
 				}
 		// deallocate this
-		printf("free:        %03d   %s \n", ptr, heapdesc(ptr).type.c_str() );
+		if (flag_memtrace)
+			printf("free:        %03d   %s \n", ptr, heapdesc(ptr).type.c_str() );
 		heap.erase(ptr);
 	}
 
@@ -338,22 +349,23 @@ struct Runtime {
 	// 	heap.erase(ptr);
 	// }
 
-	// void mem_resize(int32_t ptr, int32_t newlen) {
-	// 	auto arrtype   = heap.at(ptr).type;
-	// 	auto type      = arrtype.substr(0, arrtype.length()-2);
-	// 	int32_t oldlen = heap.at(ptr).data.size();
-	// 	if (arrtype != type+"[]")  error2("r_mem_push");
-	// 	// if newlen is shorter, free memory
-	// 	if (type != "int")
-	// 		for (int32_t i = newlen-1; i >= oldlen; i--)
-	// 			mem_free( heap.at(ptr).data[i] );
-	// 	// resize
-	// 	heap.at(ptr).data.resize(newlen, 0);
-	// 	// if newlen is longer, construct new memory
-	// 	if (type != "int")
-	// 		for (int32_t i = oldlen; i < newlen; i++)
-	// 			heap.at(ptr).data[i] = mem_malloc(type);
-	// }
+	void mem_resize(int32_t ptr, int32_t newlen) {
+		int32_t oldlen = heap.at(ptr).data.size();
+		auto type      = heap.at(ptr).type;
+		auto btype     = basetype(type);
+		// if newlen is shorter, free memory
+		if (btype != "int")
+			for (int32_t i = oldlen-1; i >= newlen; i--)
+				mem_free( heap.at(ptr).data[i] );
+		// resize
+		heap.at(ptr).data.resize(newlen, 0);
+		if (flag_memtrace)
+			printf("resize:      %03d   %d -> %d \n", ptr, oldlen, newlen );
+		// if newlen is longer, construct new memory
+		if (btype != "int")
+			for (int32_t i = oldlen; i < newlen; i++)
+				heap.at(ptr).data[i] = mem_malloc(btype);
+	}
 
 
 

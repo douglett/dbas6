@@ -21,7 +21,9 @@ function main()
 
 	call push(sh, sh[1])
 
-	print "blahblah", len(sh), len(sh[1].name)
+	print "len1:"; len(sh); len(sh[1].name)
+	redim sh, 3
+	print "len2:"; len(sh)
 
 	# redim sh, 2
 	# push sh, s

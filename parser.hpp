@@ -169,6 +169,7 @@ struct Parser : InputFile {
 			else if (peek("'if"))         p_if(l);
 			else if (peek("'while"))      p_while(l);
 			else if (peek("'let"))        p_let(l);
+			else if (peek("'redim"))      p_redim(l);
 			else if (peek("'call"))       p_call(l);
 			else    error();
 	}
@@ -261,6 +262,16 @@ struct Parser : InputFile {
 			p_strexpr(l), require("endl"), nextline();
 		}
 		else  error();
+	}
+
+	void p_redim(Node& p) {
+		require("'redim");
+		auto& l = p.pushcmdlist("redim");
+		auto t = p_varpath(l);
+		if (!is_arraytype(t))  error();
+		require("',");
+		p_intexpr(l);
+		require("endl"), nextline();
 	}
 
 	void p_call(Node& p) {
