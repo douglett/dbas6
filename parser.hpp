@@ -82,32 +82,88 @@ struct Parser : InputFile {
 		require("'end 'type endl"), nextline();
 	}
 	
+	// void p_dim_(Node& p) {
+	// 	string name, type;
+	// 	Node tmp(NT_LIST);
+	// 	if      (expect("'dim @identifier @identifier"))         name = presults.at(1), type = presults.at(0);
+	// 	else if (expect("'dim @identifier '[ '] @identifier"))   name = presults.at(1), type = presults.at(0) + "[]";
+	// 	else if (require("'dim @identifier"))                    name = presults.at(0), type = "int";
+	// 	if (type == "integer")  type = "int";  // normalize type name
+	// 	typecheck(type), namecollision(name);
+	// 	// save dim info
+	// 	if    (!cfuncname.length())  globals[name] = { name, type };
+	// 	else  functions.at(cfuncname).locals[name] = { name, type };
+	// 	p.pushlist().pushtokens({ "dim", name, type });
+	// 	// handle array definition
+	// 	if    (is_arraytype(type) && expect("'("))  p_intexpr(tmp), require("')");
+	// 	else  tmp.pushint(0);  // default array size
+	// 	// allocate complex types
+	// 	if (type != "int") {
+	// 		string loc = cfuncname.length() ? "local" : "global";
+	// 		auto& ma = setup.pushlist();
+	// 		auto& fr = teardown.pushlist();
+	// 		if (is_arraytype(type))
+	// 			ma.pushtokens({ "arrmalloc", loc, name, type }),  ma.push(tmp.back()),
+	// 			fr.pushtokens({ "free",      loc, name, type });  // arrfree?
+	// 		else
+	// 			ma.pushtokens({ "malloc",    loc, name, type }),
+	// 			fr.pushtokens({ "free",      loc, name, type });
+	// 	}
+	// 	// end dim
+	// 	require("endl"), nextline();
+	// }
+
 	void p_dim(Node& p) {
+		const string loc = cfuncname.length() ? "local" : "global";
 		string name, type;
-		Node tmp(NT_LIST);
 		if      (expect("'dim @identifier @identifier"))         name = presults.at(1), type = presults.at(0);
 		else if (expect("'dim @identifier '[ '] @identifier"))   name = presults.at(1), type = presults.at(0) + "[]";
 		else if (require("'dim @identifier"))                    name = presults.at(0), type = "int";
 		if (type == "integer")  type = "int";  // normalize type name
-		typecheck(type), namecollision(name);
-		// handle array definition
-		if    (is_arraytype(type) && expect("'("))  p_intexpr(tmp), require("')");
-		else  tmp.pushint(0);  // default array size
-		// save dim info
-		if    (!cfuncname.length())  globals[name] = { name, type };
-		else  functions.at(cfuncname).locals[name] = { name, type };
-		p.pushlist().pushtokens({ "dim", name, type });
-		// allocate complex types
-		if (type != "int") {
-			string loc = cfuncname.length() ? "local" : "global";
-			auto& ma = setup.pushlist();
-			auto& fr = teardown.pushlist();
-			if (is_arraytype(type))
-				ma.pushtokens({ "arrmalloc", loc, name, type }),  ma.push(tmp.back()),
+		typecheck(type);  // checking
+		pos--;  // put back one token (name)
+		// loop and dim all
+		while (!eof()) {
+			// save dim info
+			require("@identifier"), name = presults.at(0);
+			namecollision(name);
+			if    (!cfuncname.length())  globals[name] = { name, type };
+			else  functions.at(cfuncname).locals[name] = { name, type };
+			p.pushlist().pushtokens({ "dim", name, type });
+			// initialisers (TODO: bit messy)
+			if (type == "int") {
+				// int initialisation
+				if (expect("'=")) {
+					auto& l = setup.pushlist();
+					l.pushtokens({ "set_"+loc, name, type });
+					p_intexpr(l);
+				}
+			}
+			else if (is_arraytype(type)) {
+				// array object assignment
+				auto& ma = setup.pushlist();
+				auto& fr = teardown.pushlist();
+				ma.pushtokens({ "arrmalloc", loc, name, type }); //  ma.push(tmp.back()),
 				fr.pushtokens({ "free",      loc, name, type });  // arrfree?
-			else
+				if    (expect("'("))  p_intexpr(ma), require("')");
+				else  ma.pushint(0);
+			}
+			else {
+				// single object assignment
+				auto& ma = setup.pushlist();
+				auto& fr = teardown.pushlist();
 				ma.pushtokens({ "malloc",    loc, name, type }),
 				fr.pushtokens({ "free",      loc, name, type });
+				// string assignment
+				if (type == "string" && expect("'=")) {
+					auto& l = setup.pushcmdlist("strcpy");
+					auto& g = l.pushlist();
+					g.pushtokens({ "get_"+loc, name, type });
+					p_strexpr(l);
+				}
+			}
+			// comma seperated list
+			if (!expect("',"))  break;
 		}
 		// end dim
 		require("endl"), nextline();
@@ -127,8 +183,8 @@ struct Parser : InputFile {
 		auto& args = fn.pushcmdlist("args");
 		string name, type;
 		while (!eol()) {
-			if      (expect("@identifier '[ '] @identifier"))  name = presults.at(1), type = presults.at(0) + "[]";
-			else if (expect("@identifier @identifier"))        name = presults.at(1), type = presults.at(0);
+			if      (expect("@identifier '[ '] @identifier"))   name = presults.at(1), type = presults.at(0) + "[]";
+			else if (expect("@identifier @identifier"))         name = presults.at(1), type = presults.at(0);
 			else    break;
 			typecheck(type), namecollision(name);
 				int argc = functions.at(cfuncname).args.size();
@@ -141,8 +197,8 @@ struct Parser : InputFile {
 		// local dims
 		auto& dims = fn.pushcmdlist("dim_local");
 		while (!eof())
-			if      (expect("'endl")) ;
-			else if (peek("'dim"))  p_dim(dims);
+			if      (expect("endl"))  nextline();
+			else if (peek("'dim"))    p_dim(dims);
 			else    break;
 		// block
 		fn.push(setup);

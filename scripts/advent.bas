@@ -51,10 +51,11 @@ function buildrooms()
 end function
 
 function mainloop()
-	dim string[] ass
-	# dim string inp, dirstr
-	# dim string[] cmd, exits
-	# dim do_look = 1
+	dim string inp, dirstr
+	dim string[] cmd, exits
+	dim do_look = 1
+
+	print "ass"
 end function
 
 function main()

@@ -84,12 +84,15 @@ struct Runtime {
 
 	void r_block_special(const Node& blk) {
 		for (auto& n : blk.list)
-			if      (n.tok == "setup")         ;  // ignore this
-			else if (n.tok == "teardown")      ;  // ignore
-			else if (n.cmd() == "malloc")      r_malloc    ( n.tokat(1), n.tokat(2), n.tokat(3) );
-			else if (n.cmd() == "arrmalloc")   r_arrmalloc ( n.tokat(1), n.tokat(2), n.tokat(3), n.at(4).i );
-			else if (n.cmd() == "free")        r_free      ( n.tokat(1), n.tokat(2) );
-			// else if (n.cmd() == "arrfree")     r_arrfree   ( n.tokat(1), n.tokat(2) );
+			if      (n.tok == "setup")          ;  // ignore this
+			else if (n.tok == "teardown")       ;  // ignore
+			else if (n.cmd() == "malloc")       r_malloc    ( n.tokat(1), n.tokat(2), n.tokat(3) );
+			else if (n.cmd() == "arrmalloc")    r_arrmalloc ( n.tokat(1), n.tokat(2), n.tokat(3), n.at(4).i );
+			else if (n.cmd() == "free")         r_free      ( n.tokat(1), n.tokat(2) );
+			// else if (n.cmd() == "arrfree")      r_arrfree   ( n.tokat(1), n.tokat(2) );
+			else if (n.cmd() == "set_global")   r_set(n);
+			else if (n.cmd() == "set_local")    r_set(n);
+			else if (n.cmd() == "strcpy")       r_strcpy(n);
 			else    error2("special block error: "+n.cmd());
 	}
 

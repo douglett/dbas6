@@ -18,16 +18,17 @@ TODO:
 - input command
 - malloc / memmalloc merge?
 - for loops
-- dim with initialise (int / string)
-- single line multi-dim
-- dim syntax for arrays?
-	- int[] a(100)  vs  int a[100]
 - function hoisting
 - consts
 - argument consts
+- constexpr at top level dim
 
 DONE:
 -----
+- single line multi-dim
+- dim with initialise (int / string)
+- changed dim syntax for arrays from C to Java
+	- int a[100] -> int[] a(100)
 - call statements
 	- variant types
 	- implement non-owner pointer types
