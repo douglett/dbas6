@@ -10,7 +10,7 @@ type room_t
 end type
 
 dim room_t[] rooms(7)
-dim croom
+dim croom = 3
 
 function buildrooms()
 	redim rooms, 7
@@ -29,10 +29,10 @@ function buildrooms()
 	# let rooms[2].action1 = "torch"
 	# let rooms[2].takeaction1 = "You light the torch. The room brightens up."
 	# # -----
-	# let rooms[3].name = "cave2"
-	# let rooms[3].description = "A damp and mysterious cave. A torch flickers here."
-	# let rooms[3].exit_e = "goblin1"
-	# let rooms[3].exit_w = "dragon1"
+	let rooms[3].name = "cave2"
+	let rooms[3].description = "A damp and mysterious cave. A torch flickers here."
+	let rooms[3].exit_e = "goblin1"
+	let rooms[3].exit_w = "dragon1"
 	# # -----
 	# let rooms[4].name = "dragon1"
 	# let rooms[4].description = "Oops! A horrible dragon is here! A half-eaten knight lays near you, holding a sword."
@@ -50,12 +50,65 @@ function buildrooms()
 	# let rooms[6].description = "You escape from the cave into the medow beyond. Your nightmare adventure is finally at an end! You roll around jubilantly in the grass, disturbing the meadow badgers, which eat you."
 end function
 
+function pushstr(string[] arr, string s)
+	redim arr, len(arr) + 1
+	let arr[len(arr) - 1] = s
+end function
+
+function join(string[] arr, string glue, string str)
+	dim i, first = 1, l = len(arr)
+	let str = ""
+	while i < len(arr)
+		if first
+			let str = arr[i]
+			let first = 0
+		else
+			let str = str + glue + arr[i]
+		end if
+		let i = i + 1
+	end while
+end function
+
+function make_exit_str(string str)
+	# todo: push method
+	dim string[] exits
+	dim string n = "n", s = "s", e = "e", w = "w"
+	dim string glue = ", "
+	if len(rooms[croom].exit_n) > 0
+		call pushstr(exits, n)
+	end if
+	if len(rooms[croom].exit_s) > 0
+		call pushstr(exits, s)
+	end if
+	if len(rooms[croom].exit_e) > 0
+		call pushstr(exits, e)
+	end if
+	if len(rooms[croom].exit_w) > 0
+		call pushstr(exits, w)
+	end if
+	call join(exits, glue, str)
+end function
+
 function mainloop()
-	dim string inp, dirstr
+	dim string inp, dirstr, exitstr
 	dim string[] cmd, exits
 	dim do_look = 1
 
-	print "ass"
+	while 1
+		# show room
+		if do_look
+			print rooms[croom].description
+			if croom == 6  # final room
+				return 1
+			end if
+			call make_exit_str(exitstr)
+			print "exits:", exitstr
+			let do_look = 0
+		end if
+		# get input
+
+		break
+	end while
 end function
 
 function main()

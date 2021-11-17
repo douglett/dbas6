@@ -8,6 +8,12 @@ WIP basic (again)
 
 TODO:
 -----
+- arguments as string expressions explode runtime
+	- prevent this and add warning
+	- difference between string variable and expression types?
+	- look into better string handling
+	- difference between string reference and constructor?
+- void types for standard library?
 - call statements
 	- predefined standard library functions
 		- special hidden multi-type arguments (any array, array/string, etc)

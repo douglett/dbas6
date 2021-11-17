@@ -4,6 +4,7 @@
 #pragma once
 #include "helpers.hpp"
 #include "inputfile.hpp"
+#include "stdlib.hpp"
 #include <map>
 using namespace std;
 
@@ -24,6 +25,7 @@ const vector<string> BASIC_KEYWORDS = {
 struct Parser : InputFile {
 	Node prog;
 	Node setup, teardown;
+	StdLib stdlib;
 	map<string, Prog::Type> types;
 	map<string, Prog::Dim>  globals;
 	map<string, Prog::Func> functions;
@@ -44,6 +46,8 @@ struct Parser : InputFile {
 		prog.push(teardown);
 		p_section("function_defs", prog);
 		if (!eol())  error2("p_program");
+
+		stdlib.appendto(prog.back());
 	}
 
 	void p_section(const string& section, Node& p) {
@@ -284,10 +288,10 @@ struct Parser : InputFile {
 		require("'if");
 		auto& l = p.pushcmdlist("if");
 		p_intexpr(l), require("endl"), nextline(), p_block(l);  // first comparison
-		if (expect("'else 'if"))
+		while (expect("'else 'if"))
 			p_intexpr(l), require("endl"), nextline(), p_block(l);  // else-if statements
 		if (expect("'else endl"))
-			l.pushtoken("true"), nextline(), p_block(l);  // last else
+			l.pushtoken("true"), require("endl"), nextline(), p_block(l);  // last else
 		require("'end 'if endl"), nextline();  // block end
 	}
 
@@ -424,51 +428,6 @@ struct Parser : InputFile {
 		else    return error2("p_expr_atom"), "nil";
 	}
 
-	string p_expr_call(Node& p) {
-		peek("@identifier");
-		string fname = presults.at(0);
-		if      (fname == "len")    std_len(p);
-		else if (fname == "push")   std_push(p);
-		else    p_expr_calluser(p);
-		return "int";
-	}
-
-	void p_expr_calluser(Node& p) {
-		require("@identifier '(");
-		auto fname = presults.at(0);
-		if (!functions.count(fname))  error2("missing function");
-		auto& l = p.pushlist();
-			l.pushtokens({ "call", fname });
-		auto& args  = l.pushlist();
-		int argc    = 0;
-		while (!eol() && !peek("')")) {
-			auto t = p_anyexpr(args);
-			argc++;
-			if (argat(fname, argc-1).type != t)  error2("p_expr_call argtype");
-			if (!expect("',"))  break;
-		}
-		if (argc != functions.at(fname).args.size())  error2("p_expr_call argcount");
-		require("')");
-	}
-
-	// string p_expr_callspecial(Node& p) {
-	// 	require("@identifier '(");
-	// 	auto fname = presults.at(0);
-	// 	if (fname == "len") {
-	// 		auto& l = p.pushcmdlist("sizeof");
-	// 		auto t = p_anyexpr(l);
-	// 		if      (is_arraytype(t)) ;
-	// 		else if (t == "string")  l.at(0).tok = "strlen";
-	// 		else    goto _err;
-	// 	}
-	// 	else if (fname == "push") {
-	// 		// TODO: push
-	// 	}
-	// 	require("')");
-	// 	return "int";
-	// 	_err:  return error2("p_expr_callspecial error"), "nil";
-	// }
-
 	string p_varpath(Node& p) {
 		string type = p_varpath_base(p);
 		Node lhs;
@@ -535,6 +494,34 @@ struct Parser : InputFile {
 		return t;
 	}
 
+	string p_expr_call(Node& p) {
+		peek("@identifier");
+		string fname = presults.at(0);
+		if      (fname == "len")    std_len(p);
+		// else if (fname == "push")   std_push(p);
+		// else if (fname == "join")   std_join(p);
+		else    p_expr_calluser(p);
+		return "int";
+	}
+
+	void p_expr_calluser(Node& p) {
+		require("@identifier '(");
+		auto fname = presults.at(0);
+		if (!functions.count(fname))  error2("missing function");
+		auto& l = p.pushlist();
+			l.pushtokens({ "call", fname });
+		auto& args  = l.pushlist();
+		int argc    = 0;
+		while (!eol() && !peek("')")) {
+			auto t = p_anyexpr(args);
+			argc++;
+			if (argat(fname, argc-1).type != t)  error2("p_expr_call argtype");
+			if (!expect("',"))  break;
+		}
+		if (argc != functions.at(fname).args.size())  error2("p_expr_call argcount");
+		require("')");
+	}
+
 
 
 	// --- Std-library functions ---
@@ -549,14 +536,29 @@ struct Parser : InputFile {
 		require("')");
 	}
 	
-	void std_push(Node& p) {
-		require("'push '(");
-		error2("TODO: push");
-		// (memset (get_arrpos back (redim ptr1 size)) ptr2)
-			// (redim ptr1 size)
-			// (memset (get_arrpos (len ptr1) ptr1)) ptr2)
-		require("')");
-	}
+	// void std_push(Node& p) {
+	// 	require("'push '(");
+	// 	auto& l = p.pushlist();
+	// 	l.pushtokens({ "call", "push" });
+	// 	auto& args = l.pushlist();
+	// 	auto t1 = p_anyexpr(args);
+	// 	require("',");
+	// 	auto t2 = p_anyexpr(args);
+	// 	if (!is_arraytype(t1) || basetype(t1) != t2)  error();
+	// 	require("')");
+	// }
+
+	// void std_join(Node& p) {
+	// 	require("'join '(");
+	// 	auto& l = p.pushlist();
+	// 	l.pushtokens({ "call", "join" });
+	// 	auto& args = l.pushlist();
+	// 	auto t1 = p_anyexpr(args);
+	// 	if (!is_arraytype(t1) || basetype(t1) != "string")  error();
+	// 	require("',");
+	// 	p_strexpr(args);
+	// 	require("')");
+	// }
 
 
 
