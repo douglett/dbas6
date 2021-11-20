@@ -105,6 +105,7 @@ struct Runtime {
 		for (auto& n : blk.list)
 			if      (n.tok == "block")            ;  // ignore this
 			else if (n.cmd() == "print")          r_print(n);
+			else if (n.cmd() == "input")          r_input(n);
 			else if (n.cmd() == "if")             r_if(n);
 			else if (n.cmd() == "while")          r_while(n);
 			else if (n.cmd() == "call")           r_call(n);
@@ -130,6 +131,14 @@ struct Runtime {
 			else if (n.cmd() == "string_expr")  printf("%s", r_strexpr(n.at(1)).c_str() );
 			else    error2("print error");
 		printf("\n");
+	}
+
+	void r_input(const Node& p) {
+		int32_t ptr = r_expr(p.at(1));
+		string  inp, prompt = r_strexpr(p.at(2));
+		printf("%s", prompt.c_str());
+		getline(cin, inp);
+		string_to_ptr(inp, ptr);
 	}
 	
 
@@ -174,10 +183,11 @@ struct Runtime {
 	void r_strcpy(const Node& n) {
 		int32_t ptr = r_expr(n.at(1));
 		string s    = r_strexpr(n.at(2));
-		auto& d     = heapdesc(ptr);
-		d.data.resize(s.length());
-		for (int i = 0; i < s.length(); i++)
-			d.data[i] = s[i];
+		// auto& d     = heapdesc(ptr);
+		// d.data.resize(s.length());
+		// for (int i = 0; i < s.length(); i++)
+		// 	d.data[i] = s[i];
+		string_to_ptr(s, ptr);
 	}
 
 	void r_redim(const Node& n) {
@@ -271,6 +281,12 @@ struct Runtime {
 		for (auto c : heapdesc(ptr).data)
 			s += char(c);
 		return s;
+	}
+	void string_to_ptr(const string& s, int32_t ptr) {
+		auto& d = heapdesc(ptr);
+		d.data.resize(s.length());
+		for (int i = 0; i < s.length(); i++)
+			d.data[i] = s[i];
 	}
 
 

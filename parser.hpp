@@ -189,7 +189,7 @@ struct Parser : InputFile {
 			else if (peek("'end"))        break;  // block end statement
 			else if (peek("'else"))       break;  // block end statement
 			else if (peek("'print"))      p_print(l);
-			// else if (peek("'input"))      p_input(l);
+			else if (peek("'input"))      p_input(l);
 			else if (peek("'return"))     p_return(l);
 			else if (peek("'break"))      p_break(l);
 			else if (peek("'continue"))   p_continue(l);
@@ -216,6 +216,16 @@ struct Parser : InputFile {
 				else    error2("p_print");
 			}
 		// l.pushliteral("\n");
+		require("endl"), nextline();
+	}
+
+	void p_input(Node& p) {
+		require("'input");
+		auto& l = p.pushcmdlist("input");
+		auto t = p_varpath_set(l);
+		if (t != "string")  error();
+		if    (expect("',"))  p_strexpr(l);  // user defined prompt
+		else  l.pushliteral("> ");  // default prompt
 		require("endl"), nextline();
 	}
 
@@ -313,6 +323,7 @@ struct Parser : InputFile {
 
 	void   p_intexpr(Node& p) { p_expr_or(p) == "int" || error2("p_intexpr"); }
 	void   p_strexpr(Node& p) { auto t = p_expr_or(p);  t == "string" || t == "string$" || error2("p_strexpr"); }
+	// void   p_sptexpr(Node& p) { p_expr_or(p) == "string" || error2("p_intexpr"); }
 	string p_anyexpr(Node& p) { return p_expr_or(p); }
 
 	string p_expr_or(Node& p) {

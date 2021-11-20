@@ -71,7 +71,7 @@ end function
 
 function split(string[] arr, string str)
 	dim i
-	while i < len(arr)
+	while i < len(str)
 		print charat(str, i)
 		let i = i + 1
 	end while
@@ -114,8 +114,9 @@ function mainloop()
 			let do_look = 0
 		end if
 		# get input
-		# input inp
-		# call split(cmd, inp)
+		input inp
+		print "you did [" inp "]"
+		call split(cmd, inp)
 		# if len(cmd) == 0
 		# 	continue
 		# end if
