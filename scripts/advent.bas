@@ -69,6 +69,14 @@ function join(string[] arr, string glue, string str)
 	end while
 end function
 
+function split(string[] arr, string str)
+	dim i
+	while i < len(arr)
+		print charat(str, i)
+		let i = i + 1
+	end while
+end function
+
 function make_exit_str(string str)
 	# todo: push method
 	dim string[] exits
@@ -106,6 +114,11 @@ function mainloop()
 			let do_look = 0
 		end if
 		# get input
+		# input inp
+		# call split(cmd, inp)
+		# if len(cmd) == 0
+		# 	continue
+		# end if
 
 		break
 	end while

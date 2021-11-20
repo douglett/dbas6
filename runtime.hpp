@@ -1,5 +1,9 @@
 #pragma once
 #include "helpers.hpp"
+#include <iostream>
+#include <string>
+#include <vector>
+#include <map>
 using namespace std;
 
 
@@ -97,6 +101,7 @@ struct Runtime {
 	}
 
 	void r_block(const Node& blk) {
+		cout.flush();  // TODO: temp loop yield indicator
 		for (auto& n : blk.list)
 			if      (n.tok == "block")            ;  // ignore this
 			else if (n.cmd() == "print")          r_print(n);
@@ -220,6 +225,7 @@ struct Runtime {
 		else if (n.cmd() == "strcmp")         return r_strexpr(n.at(1)) == r_strexpr(n.at(2));
 		else if (n.cmd() == "strncmp")        return r_strexpr(n.at(1)) != r_strexpr(n.at(2));
 		else if (n.cmd() == "strlen")         return heapdesc( r_expr(n.at(1)) ).data.size();
+		else if (n.cmd() == "charat")         return r_charat( r_strexpr(n.at(1)), r_expr(n.at(2)) );
 		else if (n.cmd() == "sizeof")         return heapdesc( r_expr(n.at(1)) ).data.size();
 		else if (n.cmd() == "call")           return r_call(n);
 
@@ -257,6 +263,9 @@ struct Runtime {
 	// 	else    error2("arrfree error");
 	// 	mem_free(ptr);
 	// }
+	int32_t r_charat(const string& str, int32_t pos) {
+		return pos < 0 || pos >= str.length() ? 0 : str[pos];
+	}
 	string ptr_to_string(int32_t ptr) {
 		string s;
 		for (auto c : heapdesc(ptr).data)

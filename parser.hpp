@@ -17,7 +17,7 @@ struct Prog {
 
 const vector<string> BASIC_KEYWORDS = {
 	"int", "string",
-	"type", "dim", "function", "end"
+	"type", "dim", "redim", "function", "end",
 	"if", "while", "break", "continue",
 };
 
@@ -85,37 +85,6 @@ struct Parser : InputFile {
 		ctypename = "";
 		require("'end 'type endl"), nextline();
 	}
-	
-	// void p_dim_(Node& p) {
-	// 	string name, type;
-	// 	Node tmp(NT_LIST);
-	// 	if      (expect("'dim @identifier @identifier"))         name = presults.at(1), type = presults.at(0);
-	// 	else if (expect("'dim @identifier '[ '] @identifier"))   name = presults.at(1), type = presults.at(0) + "[]";
-	// 	else if (require("'dim @identifier"))                    name = presults.at(0), type = "int";
-	// 	if (type == "integer")  type = "int";  // normalize type name
-	// 	typecheck(type), namecollision(name);
-	// 	// save dim info
-	// 	if    (!cfuncname.length())  globals[name] = { name, type };
-	// 	else  functions.at(cfuncname).locals[name] = { name, type };
-	// 	p.pushlist().pushtokens({ "dim", name, type });
-	// 	// handle array definition
-	// 	if    (is_arraytype(type) && expect("'("))  p_intexpr(tmp), require("')");
-	// 	else  tmp.pushint(0);  // default array size
-	// 	// allocate complex types
-	// 	if (type != "int") {
-	// 		string loc = cfuncname.length() ? "local" : "global";
-	// 		auto& ma = setup.pushlist();
-	// 		auto& fr = teardown.pushlist();
-	// 		if (is_arraytype(type))
-	// 			ma.pushtokens({ "arrmalloc", loc, name, type }),  ma.push(tmp.back()),
-	// 			fr.pushtokens({ "free",      loc, name, type });  // arrfree?
-	// 		else
-	// 			ma.pushtokens({ "malloc",    loc, name, type }),
-	// 			fr.pushtokens({ "free",      loc, name, type });
-	// 	}
-	// 	// end dim
-	// 	require("endl"), nextline();
-	// }
 
 	void p_dim(Node& p) {
 		const string loc = cfuncname.length() ? "local" : "global";
@@ -243,7 +212,7 @@ struct Parser : InputFile {
 				auto& ex = l.pushcmdlist("int_expr");
 				auto  t  = p_anyexpr(ex);
 				if      (t == "int") ;
-				else if (t == "string")  ex.at(0).tok = "string_expr";
+				else if (t == "string" || t == "string$")  ex.at(0).tok = "string_expr";
 				else    error2("p_print");
 			}
 		// l.pushliteral("\n");
@@ -342,8 +311,8 @@ struct Parser : InputFile {
 
 	// --- Expressions --- 
 
-	void   p_intexpr(Node& p) { p_expr_or(p) == "int"    || error2("p_intexpr"); }
-	void   p_strexpr(Node& p) { p_expr_or(p) == "string" || error2("p_strexpr"); }
+	void   p_intexpr(Node& p) { p_expr_or(p) == "int" || error2("p_intexpr"); }
+	void   p_strexpr(Node& p) { auto t = p_expr_or(p);  t == "string" || t == "string$" || error2("p_strexpr"); }
 	string p_anyexpr(Node& p) { return p_expr_or(p); }
 
 	string p_expr_or(Node& p) {
@@ -378,12 +347,14 @@ struct Parser : InputFile {
 			string op = presults.at(0) + (presults.size() > 1 ? presults.at(1) : "");
 			auto lhs = p.pop();
 			auto& l  = p.pushlist();
+			if (t == "string")  t = "string$";  // normalise string
 			if      (t == "int")  l.pushtoken("comp"+op);
-			else if (t == "string" && op == "==")  l.pushtoken("strcmp");
-			else if (t == "string" && op == "!=")  l.pushtoken("strncmp");
+			else if (t == "string$" && op == "==")  l.pushtoken("strcmp");
+			else if (t == "string$" && op == "!=")  l.pushtoken("strncmp");
 			else    error();
 			l.push(lhs);  // reappend lhs
 			auto u = p_expr_add(l);  // parse rhs
+			if (u == "string")  u = "string$";  // normalise string
 			if (t != u)  error();
 			return "int";
 		}
@@ -395,11 +366,13 @@ struct Parser : InputFile {
 		while (expect("@'+") || expect("@'-")) {
 			auto lhs = p.pop();
 			auto& l  = p.pushlist();
+			if (t == "string")  t = "string$";  // normalise string
 			if      (t == "int")  l.pushtoken(presults.at(0) == "+" ? "add" : "sub");
-			else if (t == "string" && presults.at(0) == "+")  l.pushtoken("strcat");
+			else if (t == "string$" && presults.at(0) == "+")  l.pushtoken("strcat");
 			else    error();
 			l.push(lhs);  // reappend lhs
 			auto u = p_expr_mul(l);  // parse rhs
+			if (u == "string")  u = "string$";  // normalise string
 			if (t != u)  error();
 		}
 		return t;
@@ -424,7 +397,7 @@ struct Parser : InputFile {
 		else if (peek("identifier '("))   return p_expr_call(p);
 		else if (peek("identifier"))      return p_varpath(p);
 		else if (expect("@integer"))      return p.pushint(presults.at(0)),     "int";
-		else if (expect("@literal"))      return p.pushliteral(presults.at(0)), "string";
+		else if (expect("@literal"))      return p.pushliteral(presults.at(0)), "string$";
 		else    return error2("p_expr_atom"), "nil";
 	}
 
@@ -494,16 +467,6 @@ struct Parser : InputFile {
 		return t;
 	}
 
-	string p_expr_call(Node& p) {
-		peek("@identifier");
-		string fname = presults.at(0);
-		if      (fname == "len")    std_len(p);
-		// else if (fname == "push")   std_push(p);
-		// else if (fname == "join")   std_join(p);
-		else    p_expr_calluser(p);
-		return "int";
-	}
-
 	void p_expr_calluser(Node& p) {
 		require("@identifier '(");
 		auto fname = presults.at(0);
@@ -522,6 +485,17 @@ struct Parser : InputFile {
 		require("')");
 	}
 
+	string p_expr_call(Node& p) {
+		peek("@identifier");
+		string fname = presults.at(0);
+		if      (fname == "len")      std_len(p);
+		else if (fname == "charat")   std_charat(p);
+		// else if (fname == "push")   std_push(p);
+		// else if (fname == "join")   std_join(p);
+		else    p_expr_calluser(p);
+		return "int";
+	}
+
 
 
 	// --- Std-library functions ---
@@ -535,7 +509,17 @@ struct Parser : InputFile {
 		else    error();
 		require("')");
 	}
-	
+
+	void std_charat(Node& p) {
+		require("'charat '(");
+		auto& l = p.pushcmdlist("charat");
+		auto  t = p_anyexpr(l);
+		if (t != "string")  error();
+		require("',");
+		p_intexpr(l);
+		require("')");
+	}
+
 	// void std_push(Node& p) {
 	// 	require("'push '(");
 	// 	auto& l = p.pushlist();
