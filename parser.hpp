@@ -501,6 +501,7 @@ struct Parser : InputFile {
 		string fname = presults.at(0);
 		if      (fname == "len")      std_len(p);
 		else if (fname == "charat")   std_charat(p);
+		else if (fname == "substr")   std_substr(p);
 		// else if (fname == "push")   std_push(p);
 		// else if (fname == "join")   std_join(p);
 		else    p_expr_calluser(p);
@@ -529,6 +530,15 @@ struct Parser : InputFile {
 		require("',");
 		p_intexpr(l);
 		require("')");
+	}
+
+	void std_substr(Node& p) {
+		require("'substr '(");
+		auto& l = p.pushcmdlist("substr");
+		p_strexpr(l), require("',");  // src
+		p_strexpr(l), require("',");  // dest
+		p_intexpr(l), require("',");  // pos
+		p_intexpr(l), require("')");  // len
 	}
 
 	// void std_push(Node& p) {

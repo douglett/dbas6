@@ -70,11 +70,24 @@ function join(string[] arr, string glue, string str)
 end function
 
 function split(string[] arr, string str)
-	dim i
+	dim i, j
+	dim string s, t
+	redim arr, 0
 	while i < len(str)
-		print charat(str, i)
+		if charat(str, i) == 32
+			if len(s) > 0
+				call pushstr(arr, s)
+				let s = ""
+			end if
+		else
+			let j = substr(t, str, i, 1)  # todo: naked call issue
+			let s = s + t
+		end if
 		let i = i + 1
 	end while
+	if len(s) > 0
+		call pushstr(arr, s)
+	end if
 end function
 
 function make_exit_str(string str)
@@ -100,7 +113,7 @@ end function
 function mainloop()
 	dim string inp, dirstr, exitstr
 	dim string[] cmd, exits
-	dim do_look = 1
+	dim do_look = 1, i
 
 	while 1
 		# show room
@@ -117,9 +130,9 @@ function mainloop()
 		input inp
 		print "you did [" inp "]"
 		call split(cmd, inp)
-		# if len(cmd) == 0
-		# 	continue
-		# end if
+		if len(cmd) == 0
+			continue
+		end if
 
 		break
 	end while

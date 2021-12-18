@@ -237,6 +237,7 @@ struct Runtime {
 		else if (n.cmd() == "strlen")         return heapdesc( r_expr(n.at(1)) ).data.size();
 		else if (n.cmd() == "charat")         return r_charat( r_strexpr(n.at(1)), r_expr(n.at(2)) );
 		else if (n.cmd() == "sizeof")         return heapdesc( r_expr(n.at(1)) ).data.size();
+		else if (n.cmd() == "substr")         return r_substr( r_expr(n.at(1)), r_expr(n.at(2)), r_expr(n.at(3)), r_expr(n.at(4)) );
 		else if (n.cmd() == "call")           return r_call(n);
 
 		printf(">> expr error\n"), n.show();
@@ -275,6 +276,12 @@ struct Runtime {
 	// }
 	int32_t r_charat(const string& str, int32_t pos) {
 		return pos < 0 || pos >= str.length() ? 0 : str[pos];
+	}
+	int32_t r_substr(int32_t dest, int32_t src, int32_t pos, int32_t len) {
+		auto& d = heapdesc(dest);
+		auto& s = heapdesc(src);
+		d.data = vector<int32_t>( s.data.begin()+pos, s.data.begin()+pos+len );
+		return d.data.size();
 	}
 	string ptr_to_string(int32_t ptr) {
 		string s;
