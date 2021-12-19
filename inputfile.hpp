@@ -71,18 +71,6 @@ struct InputPattern {
 		// return total number of tokens eaten
 		return pattlist.size();
 	}
-
-	// int matchrule(const vector<string>& tokens, int pos, const SubPattern& p) {
-	// 	if      (p.pattern == "eol")         return pos >= tokens.size();
-	// 	else if (p.pattern == "endl")        return pos >= tokens.size() || tokens[pos][0] == '#';
-	// 	else if (p.pattern == "eof")         return pos >= tokens.size();
-	// 	else if (pos >= tokens.size())       return 0;
-	// 	else if (p.pattern == "comment")     return tokens[pos][0] == '#';
-	// 	else if (p.pattern == "identifier")  return is_identifier(tokens[pos]);
-	// 	else if (p.pattern == "integer")     return is_integer(tokens[pos]);
-	// 	else if (p.pattern == "literal")     return tokens[pos].size() >= 2 && tokens[pos][0] == '"' && tokens[pos].back() == '"';
-	// 	else    return assert("Pattern::match > unknown pattern" == NULL), 0;
-	// }
 };
 
 
@@ -131,31 +119,47 @@ struct InputFile {
 		// reset & check
 		tokens = {};
 		pos = 0;
-		if (lno < 0 || lno >= lines.size())
-			return 0;
+		if (lno < 0 || lno >= lines.size())  return 0;
 		// split
 		auto& line = lines[lno];
 		string s;
-		for (int i=0; i<line.length(); i++) {
+		for (int i = 0; i < line.length(); i++) {
 			char c = line[i];
-			if      (isspace(c))  s = s.length() ? (tokens.push_back(s), "") : "";
-			else if (isalnum(c) || c == '_')  s += c;
-			else if (c == '"') {
-				s = s.length() ? (tokens.push_back(s), "") : "";
-				s += c;
-				for (++i; i<line.length(); i++) {
-					s += line[i];
-					if (line[i] == '"')  break;
-				}
-			}
-			else if (c == '#') {
-				s = s.length() ? (tokens.push_back(s), "") : "";
-				tokens.push_back(line.substr(i));
-				break;
-			}
+			
+			// if      (isspace(c))  s = s.length() ? (tokens.push_back(s), "") : "";
+			// else if (isalnum(c) || c == '_')  s += c;
+			// else if (c == '"') {
+			// 	s = s.length() ? (tokens.push_back(s), "") : "";
+			// 	s += c;
+			// 	for (++i; i<line.length(); i++) {
+			// 		s += line[i];
+			// 		if (line[i] == '"')  break;
+			// 	}
+			// }
+			// else if (c == '#') {
+			// 	s = s.length() ? (tokens.push_back(s), "") : "";
+			// 	tokens.push_back(line.substr(i));
+			// 	break;
+			// }
+			// else {
+			// 	s = s.length() ? (tokens.push_back(s), "") : "";
+			// 	tokens.push_back(string() + c);
+			// }
+
+			if (isalnum(c) || c == '_')  s += c;  // id / number
 			else {
-				s = s.length() ? (tokens.push_back(s), "") : "";
-				tokens.push_back(string() + c);
+				if (s.length())  tokens.push_back(s), s = "";  // next token
+				if      (isspace(c)) { }  // whitespace (ignore)
+				else if (c == '"')   {    // string literal
+					s += c;
+					for (++i; i < line.length(); i++) {
+						s += line[i];
+						if (line[i] == '"')  break;
+					}
+					tokens.push_back(s), s = "";
+				}
+				else if (c == '#')   { tokens.push_back(line.substr(i));  break; }  // line comment
+				else                 { tokens.push_back(string() + c); }  // punctuation
 			}
 		}
 		if (s.length())  tokens.push_back(s);

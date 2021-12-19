@@ -24,21 +24,21 @@ struct DBParseError : DBError {
 			+ ", at token '" + ctok + "'";
 	}
 };
-struct DBRunError : DBError {
-	DBRunError() {
-		error_string = "DougBasic Runtime error";
-	}
-};
-struct DBCtrl : std::exception { };
-struct DBCtrlReturn : DBCtrl { };
-struct DBCtrlBreak : DBCtrl {
-	int level;
-	DBCtrlBreak(int lv) : level(lv) { }
-};
-struct DBCtrlContinue : DBCtrl {
-	int level;
-	DBCtrlContinue(int lv) : level(lv) { }
-};
+// struct DBRunError : DBError {
+// 	DBRunError() {
+// 		error_string = "DougBasic Runtime error";
+// 	}
+// };
+// struct DBCtrl : std::exception { };
+// struct DBCtrlReturn : DBCtrl { };
+// struct DBCtrlBreak : DBCtrl {
+// 	int level;
+// 	DBCtrlBreak(int lv) : level(lv) { }
+// };
+// struct DBCtrlContinue : DBCtrl {
+// 	int level;
+// 	DBCtrlContinue(int lv) : level(lv) { }
+// };
 
 
 // ----------------------------------------
@@ -70,7 +70,6 @@ int is_arrreftype(const string& s) {
 	return s.length() >= 2 && s.back() == '@';
 }
 string basetype(const string& s) {
-	// return is_arraytype(s) ? s.substr(0, s.length()-2) : s;
 	if      (is_arraytype(s))   return s.substr(0, s.length()-2);
 	else if (is_reftype(s))     return s.substr(0, s.length()-1);
 	else if (is_arrreftype(s))  return s.substr(0, s.length()-1);
@@ -81,29 +80,19 @@ string clean_strliteral(const string& s) {
 }
 vector<string> splitws(const string& str) {
 	vector<string> vs;
-	stringstream ss(str);
 	string s;
-	while(ss >> s)  vs.push_back(s);
+	for (auto c : str)
+		if   (isspace(c)) { if (s.length())  vs.push_back(s), s = ""; }
+		else              { s += c; }
+	if (s.length())  vs.push_back(s);
 	return vs;
 }
-// vector<string> spliton(const string& str, const string& delim) {
-// 	vector<string> vs;
-// 	int last = 0, next = 0;
-// 	while ((next = str.find(delim, last)) != string::npos) {
-// 		vs.push_back( str.substr(last, next-last) );
-// 		last = next + delim.length();
-// 	}
-// 	if (last < str.length()-1)  vs.push_back( str.substr(last) );
-// 	return vs;
-// }
-// string join(const vector<string>& vs, const string& delim) {
-// 	string str;
-// 	int first = 1;
-// 	for (auto& s : vs)
-// 		if    (first)  str += s,  first = 0;
-// 		else  str += delim + s;
-// 	return str;
-// }
+string join(const vector<string>& vs, const string& glue=" ") {
+	string str;
+	for (int i = 0; i < vs.size(); i++)
+		str += (i > 0 ? glue : "") + vs[i];
+	return str;
+}
 
 
 

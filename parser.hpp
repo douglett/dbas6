@@ -4,7 +4,6 @@
 #pragma once
 #include "helpers.hpp"
 #include "inputfile.hpp"
-#include "stdlib.hpp"
 #include <map>
 using namespace std;
 
@@ -25,12 +24,25 @@ const vector<string> BASIC_KEYWORDS = {
 struct Parser : InputFile {
 	Node prog;
 	Node setup, teardown;
-	StdLib stdlib;
+	vector<string> prog2;
 	map<string, Prog::Type> types;
 	map<string, Prog::Dim>  globals;
 	map<string, Prog::Func> functions;
 	string cfuncname, ctypename;
 	int flag_while = 0;  // parse flags
+
+
+	const string COMMENT_SEP = "\t ; ";
+	// void append(const string& s, const string& c="") {
+	// 	prog2.push_back( "\t" + s + (c.length() ? COMMENT_SEP + c : "") );
+	// }
+	void append(const vector<string>& vs, const string& c="") {
+		prog2.push_back( "\t" + join(vs) + (c.length() ? COMMENT_SEP + c : "") );
+	}
+	void appendl(const string& s, const string& c="") {
+		prog2.push_back( s + ":" + (c.length() ? COMMENT_SEP + c : "") );
+	}
+
 
 
 	// --- Program structure parsing ---
@@ -46,12 +58,12 @@ struct Parser : InputFile {
 		prog.push(teardown);
 		p_section("function_defs", prog);
 		if (!eol())  error2("p_program");
-
-		stdlib.appendto(prog.back());
 	}
 
 	void p_section(const string& section, Node& p) {
 		Node& l = p.pushcmdlist(section);
+		// append({ "section", section });
+		appendl( "$" + section );
 		while (!eof())
 			if      (expect("endl"))  nextline();
 			else if (section == "type_defs"      && peek("'type"))      p_type(l);
@@ -103,6 +115,7 @@ struct Parser : InputFile {
 			if    (!cfuncname.length())  globals[name] = { name, type };
 			else  functions.at(cfuncname).locals[name] = { name, type };
 			p.pushlist().pushtokens({ "dim", name, type });
+			append({ "let", name }, type);
 			// initialisers (TODO: bit messy)
 			if (type == "int") {
 				// int initialisation
@@ -377,6 +390,7 @@ struct Parser : InputFile {
 		while (expect("@'+") || expect("@'-")) {
 			auto lhs = p.pop();
 			auto& l  = p.pushlist();
+			auto  sign = presults.at(0);
 			if (t == "string")  t = "string$";  // normalise string
 			if      (t == "int")  l.pushtoken(presults.at(0) == "+" ? "add" : "sub");
 			else if (t == "string$" && presults.at(0) == "+")  l.pushtoken("strcat");
@@ -385,6 +399,7 @@ struct Parser : InputFile {
 			auto u = p_expr_mul(l);  // parse rhs
 			if (u == "string")  u = "string$";  // normalise string
 			if (t != u)  error();
+			if (t == "int")  append({ (sign == "+" ? "add.v" : "sub.v"), "$top", "$pop" });
 		}
 		return t;
 	}
@@ -403,12 +418,12 @@ struct Parser : InputFile {
 	}
 	
 	string p_expr_atom(Node& p) {
-		if      (expect("'true"))         return p.pushtoken("true"),  "int";
-		else if (expect("'false"))        return p.pushtoken("false"), "int";
+		if      (expect("'true"))         return p.pushtoken("true"),  append({ "mov.i", "$push", "true" }),  "int";
+		else if (expect("'false"))        return p.pushtoken("false"), append({ "mov.i", "$push", "false" }), "int";
 		else if (peek("identifier '("))   return p_expr_call(p);
 		else if (peek("identifier"))      return p_varpath(p);
-		else if (expect("@integer"))      return p.pushint(presults.at(0)),     "int";
-		else if (expect("@literal"))      return p.pushliteral(presults.at(0)), "string$";
+		else if (expect("@integer"))      return p.pushint(presults.at(0)),     append({ "mov.i",  "$push", presults.at(0) }), "int";
+		else if (expect("@literal"))      return p.pushliteral(presults.at(0)), /*append({ "copy.s", "$push", presults.at(0) }),*/ "string$";
 		else    return error2("p_expr_atom"), "nil";
 	}
 
