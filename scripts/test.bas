@@ -8,26 +8,26 @@
 # 	return a * a
 # end function
 
-dim a
+dim a = 1 * 2 * 4 + 4 * 3 +
 
-function main()
-	dim b = 500
-	print "hello world"
-	let a = 5+5-3-2+1
-	print "a is:", a
+# function main()
+# 	dim b = 500
+# 	print "hello world"
+# 	let a = 5+5-3-2+1
+# 	print "a is:", a
 	
-	# if a == 10
-	# 	print "a is 10!"
-	# else
-	# 	print "a is NOT 10!"
-	# end if
-	# call f(20)
-	# let a = 10 + square(4)
-	# print "inline call result:", a
+# 	# if a == 10
+# 	# 	print "a is 10!"
+# 	# else
+# 	# 	print "a is NOT 10!"
+# 	# end if
+# 	# call f(20)
+# 	# let a = 10 + square(4)
+# 	# print "inline call result:", a
 
-	# let b = "blah" + "_" + "flob"
-	# # let b = "ass"
-	# print "[" b "]"
+# 	# let b = "blah" + "_" + "flob"
+# 	# # let b = "ass"
+# 	# print "[" b "]"
 
-	# print "fart" + "butt"; "poop"
-end function
+# 	# print "fart" + "butt"; "poop"
+# end function

@@ -12,7 +12,7 @@ int main() {
 	p.load("scripts/test.bas");
 
 	p.p_program();
-	p.prog.show();
+	// p.prog.show();
 	printf("---\n");
 	for (const auto& ln : p.prog2)  cout << ln << endl;
 	printf("---\n");

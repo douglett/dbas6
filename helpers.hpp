@@ -4,9 +4,48 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <map>
 #include <stdexcept>
 using namespace std;
 
+
+
+// ----------------------------------------
+// Error codes
+// ----------------------------------------
+enum DB_PARSE_ERROR {
+	// generic errors
+	ERR_SYNTAX_ERROR = 2,
+	ERR_UNEXPECTED_EOL,
+	ERR_EXPECTED_EOF,
+	// expressions
+	ERR_UNKNOWN_ATOM,
+	ERR_EXPECTED_INT,
+	ERR_UNMATCHED_TYPES,
+	ERR_UNKNOWN_TYPE,
+	// definitions
+	ERR_UNEXPECTED_KEYWORD,
+	ERR_ALREADY_DEFINED,
+	ERR_CIRCULAR_DEFINITION,
+	// parser internal error
+	ERR_ARGUMENT_MISSING,
+};
+string error_message(DB_PARSE_ERROR err) {
+	switch (err) {
+	case ERR_SYNTAX_ERROR:           return "ERR_SYNTAX_ERROR";
+	case ERR_UNEXPECTED_EOL:         return "ERR_UNEXPECTED_EOL";
+	case ERR_EXPECTED_EOF:           return "ERR_EXPECTED_EOF";
+	case ERR_UNKNOWN_ATOM:           return "ERR_UNKNOWN_ATOM";
+	case ERR_EXPECTED_INT:           return "ERR_EXPECTED_INT";
+	case ERR_UNMATCHED_TYPES:        return "ERR_UNMATCHED_TYPES";
+	case ERR_UNKNOWN_TYPE:           return "ERR_UNKNOWN_TYPE";
+	case ERR_UNEXPECTED_KEYWORD:     return "ERR_UNEXPECTED_KEYWORD";
+	case ERR_ALREADY_DEFINED:        return "ERR_ALREADY_DEFINED";
+	case ERR_CIRCULAR_DEFINITION:    return "ERR_CIRCULAR_DEFINITION";
+	case ERR_ARGUMENT_MISSING:       return "ERR_ARGUMENT_MISSING";
+	}
+	return "UNKNOWN_ERROR_CODE_"+to_string(err);
+}
 
 
 // ----------------------------------------
@@ -19,8 +58,9 @@ struct DBError : std::exception {
 	}
 };
 struct DBParseError : DBError {
-	DBParseError(int lno, const string& ctok) {
-		error_string = "DougBasic Syntax error, line " + to_string(lno+1)
+	DBParseError(DB_PARSE_ERROR err, int lno, const string& ctok) {
+		error_string = "Error: " + error_message(err)
+			+ "  :: line " + to_string(lno+1)
 			+ ", at token '" + ctok + "'";
 	}
 };
