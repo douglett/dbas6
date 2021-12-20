@@ -8,12 +8,12 @@
 # 	return a * a
 # end function
 
-dim a = 1 * 2 * 4 + 4 * 3 +
+dim a = 1 * 2 * 4 + 4 * 3
 
-# function main()
-# 	dim b = 500
+function main()
+	dim b = 500
 # 	print "hello world"
-# 	let a = 5+5-3-2+1
+	let a = 5+5-3-2+1
 # 	print "a is:", a
 	
 # 	# if a == 10
@@ -30,4 +30,4 @@ dim a = 1 * 2 * 4 + 4 * 3 +
 # 	# print "[" b "]"
 
 # 	# print "fart" + "butt"; "poop"
-# end function
+end function

@@ -23,6 +23,8 @@ enum DB_PARSE_ERROR {
 	ERR_EXPECTED_INT,
 	ERR_UNMATCHED_TYPES,
 	ERR_UNKNOWN_TYPE,
+	// commands
+	ERR_UNKNOWN_COMMAND,
 	// definitions
 	ERR_UNEXPECTED_KEYWORD,
 	ERR_ALREADY_DEFINED,
@@ -39,6 +41,7 @@ string error_message(DB_PARSE_ERROR err) {
 	case ERR_EXPECTED_INT:           return "ERR_EXPECTED_INT";
 	case ERR_UNMATCHED_TYPES:        return "ERR_UNMATCHED_TYPES";
 	case ERR_UNKNOWN_TYPE:           return "ERR_UNKNOWN_TYPE";
+	case ERR_UNKNOWN_COMMAND:        return "ERR_UNKNOWN_COMMAND";
 	case ERR_UNEXPECTED_KEYWORD:     return "ERR_UNEXPECTED_KEYWORD";
 	case ERR_ALREADY_DEFINED:        return "ERR_ALREADY_DEFINED";
 	case ERR_CIRCULAR_DEFINITION:    return "ERR_CIRCULAR_DEFINITION";
@@ -117,6 +120,14 @@ string basetype(const string& s) {
 }
 string clean_strliteral(const string& s) {
 	return is_strliteral(s) ? s.substr(1, s.length()-2) : s;
+}
+string chomp(const string& s) {
+	int i = 0, j = s.length() - 1;
+	for ( ; i < s.length(); i++)
+		if (!isspace(s[i]))  break;
+	for ( ; j >= 0; j--)
+		if (!isspace(s[j]))  { j++; break; }
+	return s.substr(i, j-i);
 }
 vector<string> splitws(const string& str) {
 	vector<string> vs;

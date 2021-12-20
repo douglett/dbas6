@@ -34,14 +34,17 @@ struct Parser : InputFile {
 
 
 	const string COMMENT_SEP = "\t ; ";
-	// void append(const string& s, const string& c="") {
-	// 	prog2.push_back( "\t" + s + (c.length() ? COMMENT_SEP + c : "") );
-	// }
-	void append(const vector<string>& vs, const string& c="") {
+	void emit(const vector<string>& vs, const string& c="") {
 		prog2.push_back( "\t" + join(vs) + (c.length() ? COMMENT_SEP + c : "") );
 	}
-	void appendl(const string& s, const string& c="") {
+	void emitl(const string& s, const string& c="") {
 		prog2.push_back( s + ":" + (c.length() ? COMMENT_SEP + c : "") );
+	}
+	void emitc(const string& c) {
+		prog2.push_back( "\t; " + c );
+	}
+	void dsym() {
+		emitc("DSYM " + to_string(lno) + "   " + peekline());
 	}
 
 
@@ -66,13 +69,13 @@ struct Parser : InputFile {
 
 	void p_section(const string& section) {
 		// Node& l = p.pushcmdlist(section);
-		// append({ "section", section });
-		appendl( "$" + section );
+		// emit({ "section", section });
+		emitl( "$" + section );
 		while (!eof())
 			if      (expect("endl"))  nextline();
 			// else if (section == "type_defs"      && peek("'type"))      p_type(l);
 			else if (section == "dim_global"     && peek("'dim"))       p_dim();
-			// else if (section == "function_defs"  && peek("'function"))  p_function(l);
+			else if (section == "function_defs"  && peek("'function"))  p_function();
 			else    break;
 	}
 
@@ -103,7 +106,8 @@ struct Parser : InputFile {
 	// }
 
 	void p_dim() {
-		const string loc = cfuncname.length() ? "local" : "global";
+		// const string loc = cfuncname.length() ? "local" : "global";
+		dsym();
 		string name, type;
 		if      (expect("'dim @identifier @identifier"))         name = presults.at(1), type = presults.at(0);
 		else if (expect("'dim @identifier '[ '] @identifier"))   name = presults.at(1), type = presults.at(0) + "[]";
@@ -120,7 +124,7 @@ struct Parser : InputFile {
 			if    (!cfuncname.length())  globals[name] = { name, type };
 			else  functions.at(cfuncname).locals[name] = { name, type };
 			// p.pushlist().pushtokens({ "dim", name, type });
-			append({ "let", name }, type);
+			emit({ "let", name }, type);
 			// -- initialisers (TODO: bit messy)
 			if (type == "int") {
 				// int initialisation
@@ -128,6 +132,7 @@ struct Parser : InputFile {
 					// auto& l = setup.pushlist();
 					// l.pushtokens({ "set_"+loc, name, type });
 					p_intexpr();
+					emit({ "mov.v", name, "$pop" });
 				}
 			}
 			// else if (is_arraytype(type)) {
@@ -160,64 +165,88 @@ struct Parser : InputFile {
 		require("endl"), nextline();
 	}
 
-	// void p_function(Node& p) {
-	// 	require("'function @identifier '(");
-	// 	namecollision(presults.at(0));
-	// 		cfuncname            = presults.at(0);
-	// 		functions[cfuncname] = { cfuncname };
-	// 	// set up structure
-	// 	auto& fn = p.pushlist();
-	// 		fn.pushtokens({ "function", cfuncname });
-	// 	setup    = Node::CmdList("setup");
-	// 	teardown = Node::CmdList("teardown");
-	// 	// arguments
-	// 	auto& args = fn.pushcmdlist("args");
-	// 	string name, type;
-	// 	while (!eol()) {
-	// 		if      (expect("@identifier '[ '] @identifier"))   name = presults.at(1), type = presults.at(0) + "[]";
-	// 		else if (expect("@identifier @identifier"))         name = presults.at(1), type = presults.at(0);
-	// 		else    break;
-	// 		typecheck(type), namecollision(name);
-	// 			int argc = functions.at(cfuncname).args.size();
-	// 			functions.at(cfuncname).args[name] = { name, type, argc };  // save argument
-	// 			args.pushlist().pushtokens({ "dim", name, type });
-	// 		if (peek("')"))  break;
-	// 		require("',");
-	// 	}
-	// 	require("') endl"), nextline();
-	// 	// local dims
-	// 	auto& dims = fn.pushcmdlist("dim_local");
-	// 	while (!eof())
-	// 		if      (expect("endl"))  nextline();
-	// 		else if (peek("'dim"))    p_dim(dims);
-	// 		else    break;
-	// 	// block
-	// 	fn.push(setup);
-	// 	p_block(fn);
-	// 	fn.push(teardown);
-	// 	// end function
-	// 	cfuncname = "";
-	// 	require("'end 'function endl"), nextline();
-	// }
+	void p_function() {
+		require("'function @identifier '(");
+		namecollision(presults.at(0));
+			cfuncname            = presults.at(0);
+			functions[cfuncname] = { cfuncname };
+			emitl(cfuncname);
+			dsym();
+		// set up structure
+		// auto& fn = p.pushlist();
+		// 	fn.pushtokens({ "function", cfuncname });
+		// setup    = Node::CmdList("setup");
+		// teardown = Node::CmdList("teardown");
+		setup2 = teardown2 = {};
+		// arguments
+		// auto& args = fn.pushcmdlist("args");
+		// string name, type;
+		// while (!eol()) {
+		// 	if      (expect("@identifier '[ '] @identifier"))   name = presults.at(1), type = presults.at(0) + "[]";
+		// 	else if (expect("@identifier @identifier"))         name = presults.at(1), type = presults.at(0);
+		// 	else    break;
+		// 	typecheck(type), namecollision(name);
+		// 		int argc = functions.at(cfuncname).args.size();
+		// 		functions.at(cfuncname).args[name] = { name, type, argc };  // save argument
+		// 		args.pushlist().pushtokens({ "dim", name, type });
+		// 	if (peek("')"))  break;
+		// 	require("',");
+		// }
+		require("') endl"), nextline();
+		// local dims
+		// auto& dims = fn.pushcmdlist("dim_local");
+		while (!eof())
+			if      (expect("endl"))  nextline();
+			else if (peek("'dim"))    p_dim();
+			else    break;
+		// block
+		// fn.push(setup);
+		p_block();
+		// fn.push(teardown);
+		// end function
+		cfuncname = "";
+		require("'end 'function endl"), nextline();
+	}
 
-	// void p_block(Node& p) {
-	// 	auto& l = p.pushcmdlist("block");
-	// 	while (!eof())
-	// 		if      (expect("endl"))      nextline();  // empty line
-	// 		else if (peek("'end"))        break;  // block end statement
-	// 		else if (peek("'else"))       break;  // block end statement
-	// 		else if (peek("'print"))      p_print(l);
-	// 		else if (peek("'input"))      p_input(l);
-	// 		else if (peek("'return"))     p_return(l);
-	// 		else if (peek("'break"))      p_break(l);
-	// 		else if (peek("'continue"))   p_continue(l);
-	// 		else if (peek("'if"))         p_if(l);
-	// 		else if (peek("'while"))      p_while(l);
-	// 		else if (peek("'let"))        p_let(l);
-	// 		else if (peek("'redim"))      p_redim(l);
-	// 		else if (peek("'call"))       p_call(l);
-	// 		else    error();
-	// }
+	void p_block() {
+		while (!eof())
+			if      (expect("endl"))      nextline();  // empty line
+			else if (peek("'end"))        break;  // block end statement
+			else if (peek("'else"))       break;  // block end statement
+			else if (peek("'let"))        p_let();
+			// else if (peek("'print"))      p_print(l);
+			// else if (peek("'input"))      p_input(l);
+			// else if (peek("'return"))     p_return(l);
+			// else if (peek("'break"))      p_break(l);
+			// else if (peek("'continue"))   p_continue(l);
+			// else if (peek("'if"))         p_if(l);
+			// else if (peek("'while"))      p_while(l);
+			// else if (peek("'call"))       p_call(l);
+			// else if (peek("'redim"))      p_redim(l);
+			else    error(ERR_UNKNOWN_COMMAND);
+	}
+
+	void p_let() {
+		dsym();
+		// require("'let");
+		// auto t = p_varpath_set(p);
+		// require("'=");
+		require("'let @identifier '=");
+		auto id = presults.at(0);
+		p_intexpr();
+		emit({ "set.v", id, "$pop" });
+		// if (t == "int") {
+		// 	auto& l = p.back();
+		// 	p_intexpr(l), require("endl"), nextline();
+		// }
+		// else if (t == "string") {
+		// 	auto  lhs = p.pop();
+		// 	auto& l   = p.pushcmdlist("strcpy");
+		// 	l.push(lhs);
+		// 	p_strexpr(l), require("endl"), nextline();
+		// }
+		// else  error();
+	}
 
 	// void p_print(Node& p) {
 	// 	require("'print");
@@ -302,23 +331,6 @@ struct Parser : InputFile {
 	// 	flag_while--;
 	// }
 
-	// void p_let(Node& p) {
-	// 	require("'let");
-	// 	auto t = p_varpath_set(p);
-	// 	require("'=");
-	// 	if (t == "int") {
-	// 		auto& l = p.back();
-	// 		p_intexpr(l), require("endl"), nextline();
-	// 	}
-	// 	else if (t == "string") {
-	// 		auto  lhs = p.pop();
-	// 		auto& l   = p.pushcmdlist("strcpy");
-	// 		l.push(lhs);
-	// 		p_strexpr(l), require("endl"), nextline();
-	// 	}
-	// 	else  error();
-	// }
-
 	// void p_redim(Node& p) {
 	// 	require("'redim");
 	// 	auto& l = p.pushcmdlist("redim");
@@ -401,13 +413,13 @@ struct Parser : InputFile {
 			// auto u = p_expr_mul(l);  // parse rhs
 			// if (u == "string")  u = "string$";  // normalise string
 			// if (t != u)  error();
-			// if (t == "int")  append({ (sign == "+" ? "add.v" : "sub.v"), "$top", "$pop" });
+			// if (t == "int")  emit({ (sign == "+" ? "add.v" : "sub.v"), "$top", "$pop" });
 			
 			string opcode = presults.at(0) == "+" ? "add.v" : "sub.v";
 			auto u = p_expr_mul();
 			if (t != u)  error(ERR_EXPECTED_INT);
 			if (t == "int") {
-				append({ opcode, "$peek", "$pop" });
+				emit({ opcode, "$peek", "$pop" });
 			}
 			else  error(ERR_UNMATCHED_TYPES);
 		}
@@ -420,18 +432,18 @@ struct Parser : InputFile {
 			string opcode = presults.at(0) == "*" ? "mul.v" : "div.v";
 			auto u = p_expr_atom();
 			if (t != "int" || t != u)  error(ERR_EXPECTED_INT);
-			append({ opcode, "$peek", "$pop" });
+			emit({ opcode, "$peek", "$pop" });
 		}
 		return t;
 	}
 	
 	string p_expr_atom() {
-		if      (expect("'true"))         return append({ "mov.i", "$push", "true" }),  "int";
-		else if (expect("'false"))        return append({ "mov.i", "$push", "false" }), "int";
+		if      (expect("'true"))         return emit({ "mov.i", "$push", "true" }),  "int";
+		else if (expect("'false"))        return emit({ "mov.i", "$push", "false" }), "int";
 		// else if (peek("identifier '("))   return p_expr_call(p);
 		// else if (peek("identifier"))      return p_varpath(p);
-		else if (expect("@integer"))      return append({ "mov.i",  "$push", presults.at(0) }), "int";
-		// else if (expect("@literal"))      return p.pushliteral(presults.at(0)), /*append({ "copy.s", "$push", presults.at(0) }),*/ "string$";
+		else if (expect("@integer"))      return emit({ "mov.i",  "$push", presults.at(0) }), "int";
+		// else if (expect("@literal"))      return p.pushliteral(presults.at(0)), /*emit({ "copy.s", "$push", presults.at(0) }),*/ "string$";
 		else if (eol())                   error(ERR_UNEXPECTED_EOL);
 		return error(ERR_UNKNOWN_ATOM), "nil";
 	}

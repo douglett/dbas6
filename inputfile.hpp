@@ -166,6 +166,12 @@ struct InputFile {
 		return 1;
 	}
 
+	string peekline() {
+		if (lno >= lines.size())  return "";
+		// return lines[lno];
+		return chomp(lines[lno]);
+	}
+
 	int nextline() {
 		lno++;
 		return tokenizeline();
