@@ -4,17 +4,19 @@
 # 	dim string b
 # end type
 
-# function square(int a)
-# 	return a * a
-# end function
-
 dim a = 1 * 2 * 4 + 4 * 3
+
+function square(int a)
+	return a * a
+end function
 
 function main()
 	dim b = 500
-# 	print "hello world"
-	let a = 5+5-3-2+1
-# 	print "a is:", a
+	dim c = 0
+	let c = 5+5-3-2+1
+	print "a, b, c is:", a, b, c
+
+	call square(2)
 	
 # 	# if a == 10
 # 	# 	print "a is 10!"

@@ -25,16 +25,18 @@ struct Parser : InputFile {
 	// Node prog;
 	// Node setup, teardown;
 	// Node n;
-	vector<string> prog2, setup2, teardown2;
+	vector<string> prog2;
+	// vector<string> setup2, teardown2;
 	map<string, Prog::Type> types;
 	map<string, Prog::Dim>  globals;
 	map<string, Prog::Func> functions;
 	string cfuncname, ctypename;
-	int flag_while = 0;  // parse flags
+	int flag_while = 0, flag_lastret = 0;  // parse flags
 
 
 	const string COMMENT_SEP = "\t ; ";
 	void emit(const vector<string>& vs, const string& c="") {
+		flag_lastret = (vs.size() && vs.at(0) == "ret");
 		prog2.push_back( "\t" + join(vs) + (c.length() ? COMMENT_SEP + c : "") );
 	}
 	void emitl(const string& s, const string& c="") {
@@ -56,11 +58,13 @@ struct Parser : InputFile {
 		// setup    = Node::CmdList("setup");
 		// teardown = Node::CmdList("teardown");
 		prog2     = {};
-		setup2    = {};
-		teardown2 = {};
+		// setup2    = {};
+		// teardown2 = {};
 		cfuncname = ctypename = "", flag_while = 0;
 		p_section("type_defs");
 		p_section("dim_global");
+		emit({ "call", "main" });
+		emit({ "halt" });
 		// prog.push(setup);
 		// prog.push(teardown);
 		p_section("function_defs");
@@ -112,7 +116,7 @@ struct Parser : InputFile {
 		if      (expect("'dim @identifier @identifier"))         name = presults.at(1), type = presults.at(0);
 		else if (expect("'dim @identifier '[ '] @identifier"))   name = presults.at(1), type = presults.at(0) + "[]";
 		else if (require("'dim @identifier"))                    name = presults.at(0), type = "int";
-		if (type == "integer")  type = "int";  // normalize type name
+		// if (type == "integer")  type = "int";  // normalize type name
 		typecheck(type);  // checking
 		pos--;  // put back one token (name)
 		// 
@@ -173,28 +177,30 @@ struct Parser : InputFile {
 			emitl(cfuncname);
 			dsym();
 		// set up structure
-		// auto& fn = p.pushlist();
-		// 	fn.pushtokens({ "function", cfuncname });
-		// setup    = Node::CmdList("setup");
-		// teardown = Node::CmdList("teardown");
-		setup2 = teardown2 = {};
-		// arguments
-		// auto& args = fn.pushcmdlist("args");
-		// string name, type;
-		// while (!eol()) {
-		// 	if      (expect("@identifier '[ '] @identifier"))   name = presults.at(1), type = presults.at(0) + "[]";
-		// 	else if (expect("@identifier @identifier"))         name = presults.at(1), type = presults.at(0);
-		// 	else    break;
-		// 	typecheck(type), namecollision(name);
-		// 		int argc = functions.at(cfuncname).args.size();
-		// 		functions.at(cfuncname).args[name] = { name, type, argc };  // save argument
-		// 		args.pushlist().pushtokens({ "dim", name, type });
-		// 	if (peek("')"))  break;
-		// 	require("',");
-		// }
+		// setup2 = teardown2 = {};
+		// parse arguments
+		string name, type;
+		int argc = 0;
+		while (!eol()) {
+			if      (expect("@identifier '[ '] @identifier"))   name = presults.at(1), type = presults.at(0) + "[]";
+			else if (expect("@identifier @identifier"))         name = presults.at(1), type = presults.at(0);
+			else    break;
+			typecheck(type), namecollision(name);
+				functions.at(cfuncname).args[name] = { name, type, argc };  // save argument
+				argc++;  // increment args count
+				emit({ "let", name });
+			if (peek("')"))  break;
+			require("',");
+		}
 		require("') endl"), nextline();
+		// emit arguments
+		if (argc) {
+			emit({ "mov.v", "g", "$pop" }, "copy ret address");
+			for (int i = argc-1; i >= 0; i--)
+				emit({ "mov.v", argat(cfuncname, i).name, "$pop" });
+			emit({ "mov.v", "$push", "g" }, "restore ret address");
+		}
 		// local dims
-		// auto& dims = fn.pushcmdlist("dim_local");
 		while (!eof())
 			if      (expect("endl"))  nextline();
 			else if (peek("'dim"))    p_dim();
@@ -204,8 +210,12 @@ struct Parser : InputFile {
 		p_block();
 		// fn.push(teardown);
 		// end function
-		cfuncname = "";
 		require("'end 'function endl"), nextline();
+		if (!flag_lastret) {
+			emit({ "mov.i", "f", "0" });
+			emit({ "ret" });
+		}
+		cfuncname = "";
 	}
 
 	void p_block() {
@@ -214,15 +224,15 @@ struct Parser : InputFile {
 			else if (peek("'end"))        break;  // block end statement
 			else if (peek("'else"))       break;  // block end statement
 			else if (peek("'let"))        p_let();
-			// else if (peek("'print"))      p_print(l);
+			else if (peek("'call"))       p_call();
+			else if (peek("'print"))      p_print();
 			// else if (peek("'input"))      p_input(l);
-			// else if (peek("'return"))     p_return(l);
+			// else if (peek("'redim"))      p_redim(l);
+			else if (peek("'return"))     p_return();
 			// else if (peek("'break"))      p_break(l);
 			// else if (peek("'continue"))   p_continue(l);
 			// else if (peek("'if"))         p_if(l);
 			// else if (peek("'while"))      p_while(l);
-			// else if (peek("'call"))       p_call(l);
-			// else if (peek("'redim"))      p_redim(l);
 			else    error(ERR_UNKNOWN_COMMAND);
 	}
 
@@ -234,7 +244,7 @@ struct Parser : InputFile {
 		require("'let @identifier '=");
 		auto id = presults.at(0);
 		p_intexpr();
-		emit({ "set.v", id, "$pop" });
+		emit({ "mov.v", id, "$pop" });
 		// if (t == "int") {
 		// 	auto& l = p.back();
 		// 	p_intexpr(l), require("endl"), nextline();
@@ -248,23 +258,34 @@ struct Parser : InputFile {
 		// else  error();
 	}
 
-	// void p_print(Node& p) {
-	// 	require("'print");
-	// 	auto& l = p.pushcmdlist("print");
-	// 	while (!eol())
-	// 		if      (peek("endl"))  break;
-	// 		else if (expect("',"))  l.pushliteral(" ");
-	// 		else if (expect("';"))  l.pushliteral("\t");
-	// 		else {
-	// 			auto& ex = l.pushcmdlist("int_expr");
-	// 			auto  t  = p_anyexpr(ex);
-	// 			if      (t == "int") ;
-	// 			else if (t == "string" || t == "string$")  ex.at(0).tok = "string_expr";
-	// 			else    error2("p_print");
-	// 		}
-	// 	// l.pushliteral("\n");
-	// 	require("endl"), nextline();
-	// }
+	void p_call() {
+		dsym();
+		require("'call");
+		p_expr_call();
+		require("endl"), nextline();
+	}
+
+	void p_print() {
+		dsym();
+		require("'print");
+		// auto& l = p.pushcmdlist("print");
+		while (!eol())
+			if      (peek("endl"))        break;
+			else if (expect("',"))        emit({ "print.s", "\" \"" });
+			else if (expect("';"))        emit({ "print.s", "\"\t\"" });
+			else if (expect("@literal"))  emit({ "print.s", presults.at(0) });
+			else    p_intexpr(), emit({ "print.v", "$pop" });
+			// else {
+			// 	auto& ex = l.pushcmdlist("int_expr");
+			// 	auto  t  = p_anyexpr(ex);
+			// 	if      (t == "int") ;
+			// 	else if (t == "string" || t == "string$")  ex.at(0).tok = "string_expr";
+			// 	else    error2("p_print");
+			// }
+		// l.pushliteral("\n");
+		emit({ "print.s", "\"\\n\"" });
+		require("endl"), nextline();
+	}
 
 	// void p_input(Node& p) {
 	// 	require("'input");
@@ -276,13 +297,14 @@ struct Parser : InputFile {
 	// 	require("endl"), nextline();
 	// }
 
-	// void p_return(Node& p) {
-	// 	require("'return");
-	// 	auto& l = p.pushcmdlist("return");
-	// 	if    (expect("endl"))  l.pushtoken("0");
-	// 	else  p_intexpr(l);
-	// 	require("endl"), nextline();
-	// }
+	void p_return() {
+		dsym();
+		require("'return");
+		if    (expect("endl"))  emit({ "mov.i", "f", "0" });
+		else  p_intexpr(), emit({ "mov.v", "f", "$pop" });
+		require("endl"), nextline();
+		emit({ "ret" });
+	}
 
 	// void p_break(Node& p) {
 	// 	require("'break");
@@ -338,12 +360,6 @@ struct Parser : InputFile {
 	// 	if (!is_arraytype(t))  error();
 	// 	require("',");
 	// 	p_intexpr(l);
-	// 	require("endl"), nextline();
-	// }
-
-	// void p_call(Node& p) {
-	// 	require("'call");
-	// 	p_expr_call(p);
 	// 	require("endl"), nextline();
 	// }
 
@@ -442,6 +458,7 @@ struct Parser : InputFile {
 		else if (expect("'false"))        return emit({ "mov.i", "$push", "false" }), "int";
 		// else if (peek("identifier '("))   return p_expr_call(p);
 		// else if (peek("identifier"))      return p_varpath(p);
+		else if (expect("@identifier"))   return emit({ "mov.v",  "$push", presults.at(0) }), "int";
 		else if (expect("@integer"))      return emit({ "mov.i",  "$push", presults.at(0) }), "int";
 		// else if (expect("@literal"))      return p.pushliteral(presults.at(0)), /*emit({ "copy.s", "$push", presults.at(0) }),*/ "string$";
 		else if (eol())                   error(ERR_UNEXPECTED_EOL);
@@ -514,35 +531,39 @@ struct Parser : InputFile {
 	// 	return t;
 	// }
 
-	// void p_expr_calluser(Node& p) {
-	// 	require("@identifier '(");
-	// 	auto fname = presults.at(0);
-	// 	if (!functions.count(fname))  error2("missing function");
-	// 	auto& l = p.pushlist();
-	// 		l.pushtokens({ "call", fname });
-	// 	auto& args  = l.pushlist();
-	// 	int argc    = 0;
-	// 	while (!eol() && !peek("')")) {
-	// 		auto t = p_anyexpr(args);
-	// 		argc++;
-	// 		if (argat(fname, argc-1).type != t)  error2("p_expr_call argtype");
-	// 		if (!expect("',"))  break;
-	// 	}
-	// 	if (argc != functions.at(fname).args.size())  error2("p_expr_call argcount");
-	// 	require("')");
-	// }
+	string p_expr_call() {
+		// peek("@identifier");
+		// string fname = presults.at(0);
+		// if      (fname == "len")      std_len(p);
+		// else if (fname == "charat")   std_charat(p);
+		// else if (fname == "substr")   std_substr(p);
+		// // else if (fname == "push")   std_push(p);
+		// // else if (fname == "join")   std_join(p);
+		// else    p_expr_calluser(p);
+		// return "int";
+		return p_expr_call_user();
+	}
 
-	// string p_expr_call(Node& p) {
-	// 	peek("@identifier");
-	// 	string fname = presults.at(0);
-	// 	if      (fname == "len")      std_len(p);
-	// 	else if (fname == "charat")   std_charat(p);
-	// 	else if (fname == "substr")   std_substr(p);
-	// 	// else if (fname == "push")   std_push(p);
-	// 	// else if (fname == "join")   std_join(p);
-	// 	else    p_expr_calluser(p);
-	// 	return "int";
-	// }
+	string p_expr_call_user() {
+		require("@identifier '(");
+		auto fname = presults.at(0);
+		if (!functions.count(fname))  error(ERR_UNDEFINED_FUNCTION);
+		// auto& l = p.pushlist();
+		// 	l.pushtokens({ "call", fname });
+		// auto& args  = l.pushlist();
+		int argc = 0;
+		while (!eol() && !peek("')")) {
+			// auto t = p_anyexpr(args);
+			p_intexpr();
+			argc++;
+			if (argat(fname, argc-1).type != "int")  error(ERR_EXPECTED_INT);
+			if (!expect("',"))  break;
+		}
+		require("')");
+		if (argc != functions.at(fname).args.size())  error(ERR_ARGUMENT_COUNT_MISMATCH);
+		emit({ "call", fname });
+		return "int";
+	}
 
 
 
@@ -627,7 +648,7 @@ struct Parser : InputFile {
 	// }
 	void typecheck(const string& type) {
 		auto btype = basetype(type);
-		if (btype != "int" && btype != "string" && types.count(btype) == 0)  error(ERR_UNKNOWN_TYPE);
+		if (btype != "int" && btype != "string" && types.count(btype) == 0)  error(ERR_UNDEFINED_TYPE);
 		if (ctypename == type)  error(ERR_CIRCULAR_DEFINITION);
 	}
 	void namecollision(const string& name) {
@@ -648,7 +669,7 @@ struct Parser : InputFile {
 	const Prog::Dim& argat(const string& fname, int index) {
 		for (const auto& d : functions.at(fname).args)
 			if (d.second.index == index)  return d.second;
-		error(ERR_ARGUMENT_MISSING);
+		error(ERR_ARGUMENT_INDEX_MISSING);
 		throw DBError();
 	}
 };

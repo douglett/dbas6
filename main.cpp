@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include "inputfile.hpp"
 #include "parser.hpp"
 using namespace std;
@@ -14,6 +15,10 @@ int main() {
 	p.p_program();
 	// p.prog.show();
 	printf("---\n");
-	for (const auto& ln : p.prog2)  cout << ln << endl;
+	fstream fs("bin/output.asm", ios::out);
+	for (const auto& ln : p.prog2) {
+		cout << ln << endl;
+		fs   << ln << endl;
+	}
 	printf("---\n");
 }
