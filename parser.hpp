@@ -22,9 +22,6 @@ const vector<string> BASIC_KEYWORDS = {
 
 
 struct Parser : InputFile {
-	// Node prog;
-	// Node setup, teardown;
-	// Node n;
 	vector<string> prog2;
 	// vector<string> setup2, teardown2;
 	map<string, Prog::Type> types;
@@ -54,13 +51,8 @@ struct Parser : InputFile {
 	// --- Program structure parsing ---
 
 	void p_program() {
-		// prog     = Node::CmdList("program");
-		// setup    = Node::CmdList("setup");
-		// teardown = Node::CmdList("teardown");
 		prog2     = {};
-		// setup2    = {};
-		// teardown2 = {};
-		cfuncname = ctypename = "", flag_while = 0;
+		cfuncname = ctypename = "",  flag_while = flag_lastret = flag_ctrlpoint = 0;
 		p_section("type_defs");
 		p_section("dim_global");
 		emit({ "call", "main" });
@@ -72,8 +64,6 @@ struct Parser : InputFile {
 	}
 
 	void p_section(const string& section) {
-		// Node& l = p.pushcmdlist(section);
-		// emit({ "section", section });
 		emitl( "$" + section );
 		while (!eof())
 			if      (expect("endl"))  nextline();
@@ -110,13 +100,12 @@ struct Parser : InputFile {
 	// }
 
 	void p_dim() {
-		// const string loc = cfuncname.length() ? "local" : "global";
 		dsym();
+		const string loc = cfuncname.length() ? "local" : "global";
 		string name, type;
 		if      (expect("'dim @identifier @identifier"))         name = presults.at(1), type = presults.at(0);
 		else if (expect("'dim @identifier '[ '] @identifier"))   name = presults.at(1), type = presults.at(0) + "[]";
 		else if (require("'dim @identifier"))                    name = presults.at(0), type = "int";
-		// if (type == "integer")  type = "int";  // normalize type name
 		typecheck(type);  // checking
 		pos--;  // put back one token (name)
 		// 
@@ -127,7 +116,6 @@ struct Parser : InputFile {
 			namecollision(name);
 			if    (!cfuncname.length())  globals[name] = { name, type };
 			else  functions.at(cfuncname).locals[name] = { name, type };
-			// p.pushlist().pushtokens({ "dim", name, type });
 			emit({ "let", name }, type);
 			// -- initialisers (TODO: bit messy)
 			if (type == "int") {
@@ -204,9 +192,9 @@ struct Parser : InputFile {
 			else if (peek("'dim"))    p_dim();
 			else    break;
 		// block
-		// fn.push(setup);
+		// emit setup here
 		p_block();
-		// fn.push(teardown);
+		// emit teardown here
 		// end function
 		require("'end 'function endl"), nextline();
 		if (!flag_lastret) {
@@ -267,7 +255,6 @@ struct Parser : InputFile {
 	void p_print() {
 		dsym();
 		require("'print");
-		// auto& l = p.pushcmdlist("print");
 		while (!eol())
 			if      (peek("endl"))        break;
 			else if (expect("',"))        emit({ "print.s", "\" \"" });
@@ -281,7 +268,6 @@ struct Parser : InputFile {
 			// 	else if (t == "string" || t == "string$")  ex.at(0).tok = "string_expr";
 			// 	else    error2("p_print");
 			// }
-		// l.pushliteral("\n");
 		emit({ "print.s", "\"\\n\"" });
 		require("endl"), nextline();
 	}
@@ -293,6 +279,16 @@ struct Parser : InputFile {
 	// 	if (t != "string")  error();
 	// 	if    (expect("',"))  p_strexpr(l);  // user defined prompt
 	// 	else  l.pushliteral("> ");  // default prompt
+	// 	require("endl"), nextline();
+	// }
+
+	// void p_redim(Node& p) {
+	// 	require("'redim");
+	// 	auto& l = p.pushcmdlist("redim");
+	// 	auto t = p_varpath(l);
+	// 	if (!is_arraytype(t))  error();
+	// 	require("',");
+	// 	p_intexpr(l);
 	// 	require("endl"), nextline();
 	// }
 
@@ -356,16 +352,6 @@ struct Parser : InputFile {
 	// 	p_block(l);
 	// 	require("'end 'while endl"), nextline();
 	// 	flag_while--;
-	// }
-
-	// void p_redim(Node& p) {
-	// 	require("'redim");
-	// 	auto& l = p.pushcmdlist("redim");
-	// 	auto t = p_varpath(l);
-	// 	if (!is_arraytype(t))  error();
-	// 	require("',");
-	// 	p_intexpr(l);
-	// 	require("endl"), nextline();
 	// }
 
 
@@ -449,11 +435,8 @@ struct Parser : InputFile {
 			
 			string opcode = presults.at(0) == "+" ? "add.v" : "sub.v";
 			auto u = p_expr_mul();
-			if (t != u)  error(ERR_EXPECTED_INT);
-			if (t == "int") {
-				emit({ opcode, "$peek", "$pop" });
-			}
-			else  error(ERR_UNMATCHED_TYPES);
+			if (t != "int" || t != u)  error(ERR_EXPECTED_INT);  // ERR_UNMATCHED_TYPES
+			emit({ opcode, "$peek", "$pop" });
 		}
 		return t;
 	}
@@ -476,7 +459,7 @@ struct Parser : InputFile {
 		else if (peek("identifier"))      return p_varpath();
 		else if (expect("@identifier"))   return emit({ "mov.v",  "$push", presults.at(0) }), "int";
 		else if (expect("@integer"))      return emit({ "mov.i",  "$push", presults.at(0) }), "int";
-		// else if (expect("@literal"))      return p.pushliteral(presults.at(0)), /*emit({ "copy.s", "$push", presults.at(0) }),*/ "string$";
+		// else if (expect("@literal"))      return p.pushliteral(presults.at(0)),  "string$";
 		else if (eol())                   error(ERR_UNEXPECTED_EOL);
 		return error(ERR_UNKNOWN_ATOM), "nil";
 	}
@@ -562,12 +545,8 @@ struct Parser : InputFile {
 		require("@identifier '(");
 		auto fname = presults.at(0);
 		if (!functions.count(fname))  error(ERR_UNDEFINED_FUNCTION);
-		// auto& l = p.pushlist();
-		// 	l.pushtokens({ "call", fname });
-		// auto& args  = l.pushlist();
 		int argc = 0;
 		while (!eol() && !peek("')")) {
-			// auto t = p_anyexpr(args);
 			p_intexpr();
 			argc++;
 			if (argat(fname, argc-1).type != "int")  error(ERR_EXPECTED_INT);
@@ -654,12 +633,6 @@ struct Parser : InputFile {
 	int error(DB_PARSE_ERROR err) {
 		throw DBParseError(err, lno, currenttoken());
 	}
-	// int error2(const string& msg) {
-	// 	// Temporary WIP parser errors
-	// 	DBParseError d(DB_SYNTAX_ERROR, lno, currenttoken());
-	// 	d.error_string += " :: " + msg;
-	// 	throw d;
-	// }
 	void typecheck(const string& type) {
 		auto btype = basetype(type);
 		if (btype != "int" && btype != "string" && types.count(btype) == 0)  error(ERR_UNDEFINED_TYPE);
