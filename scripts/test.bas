@@ -17,15 +17,16 @@ function main()
 	print "a, b, c is:", a, b, c
 
 	call square(2)
+	let a = square(3)
+	let a = 10 + square(4)
+	print "inline call result:", a
 	
-# 	# if a == 10
-# 	# 	print "a is 10!"
-# 	# else
-# 	# 	print "a is NOT 10!"
-# 	# end if
-# 	# call f(20)
-# 	# let a = 10 + square(4)
-# 	# print "inline call result:", a
+	if a == 10
+		print "a is 10!"
+	# else
+		# print "a is NOT 10!"
+	end if
+	# call f(20)
 
 # 	# let b = "blah" + "_" + "flob"
 # 	# # let b = "ass"

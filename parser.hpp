@@ -31,7 +31,7 @@ struct Parser : InputFile {
 	map<string, Prog::Dim>  globals;
 	map<string, Prog::Func> functions;
 	string cfuncname, ctypename;
-	int flag_while = 0, flag_lastret = 0;  // parse flags
+	int flag_while = 0, flag_lastret = 0, flag_ctrlpoint = 0;  // parse flags
 
 
 	const string COMMENT_SEP = "\t ; ";
@@ -195,10 +195,8 @@ struct Parser : InputFile {
 		require("') endl"), nextline();
 		// emit arguments
 		if (argc) {
-			emit({ "mov.v", "g", "$pop" }, "copy ret address");
 			for (int i = argc-1; i >= 0; i--)
 				emit({ "mov.v", argat(cfuncname, i).name, "$pop" });
-			emit({ "mov.v", "$push", "g" }, "restore ret address");
 		}
 		// local dims
 		while (!eof())
@@ -212,7 +210,7 @@ struct Parser : InputFile {
 		// end function
 		require("'end 'function endl"), nextline();
 		if (!flag_lastret) {
-			emit({ "mov.i", "f", "0" });
+			emit({ "mov.i", "$push", "0" });
 			emit({ "ret" });
 		}
 		cfuncname = "";
@@ -231,7 +229,7 @@ struct Parser : InputFile {
 			else if (peek("'return"))     p_return();
 			// else if (peek("'break"))      p_break(l);
 			// else if (peek("'continue"))   p_continue(l);
-			// else if (peek("'if"))         p_if(l);
+			else if (peek("'if"))         p_if();
 			// else if (peek("'while"))      p_while(l);
 			else    error(ERR_UNKNOWN_COMMAND);
 	}
@@ -263,6 +261,7 @@ struct Parser : InputFile {
 		require("'call");
 		p_expr_call();
 		require("endl"), nextline();
+		emit({ "drop" }, "discard return value");
 	}
 
 	void p_print() {
@@ -300,8 +299,8 @@ struct Parser : InputFile {
 	void p_return() {
 		dsym();
 		require("'return");
-		if    (expect("endl"))  emit({ "mov.i", "f", "0" });
-		else  p_intexpr(), emit({ "mov.v", "f", "$pop" });
+		if    (expect("endl"))  emit({ "mov.i", "$push", "0" });
+		else  p_intexpr();
 		require("endl"), nextline();
 		emit({ "ret" });
 	}
@@ -332,16 +331,22 @@ struct Parser : InputFile {
 	// 	require("endl"), nextline();
 	// }
 
-	// void p_if(Node& p) {
-	// 	require("'if");
-	// 	auto& l = p.pushcmdlist("if");
-	// 	p_intexpr(l), require("endl"), nextline(), p_block(l);  // first comparison
-	// 	while (expect("'else 'if"))
-	// 		p_intexpr(l), require("endl"), nextline(), p_block(l);  // else-if statements
-	// 	if (expect("'else endl"))
-	// 		l.pushtoken("true"), require("endl"), nextline(), p_block(l);  // last else
-	// 	require("'end 'if endl"), nextline();  // block end
-	// }
+	void p_if() {
+		dsym();
+		require("'if");
+		int point = ++flag_ctrlpoint, inner = 1;
+		string pname = "$ctrlpoint_"+to_string(point)+"_";
+		emitl("$ctrlpoint_"+to_string(point));
+			p_intexpr(), require("endl"), nextline();  // first comparison
+			emit({ "jumpifn", pname+to_string(inner), "$pop" }, "first condition");
+			p_block();  // first comparison
+		// while (expect("'else 'if"))
+		// 	p_intexpr(l), require("endl"), nextline(), p_block(l);  // else-if statements
+		// if (expect("'else endl"))
+		// 	l.pushtoken("true"), require("endl"), nextline(), p_block(l);  // last else
+		require("'end 'if endl"), nextline();  // block end
+		emitl(pname+to_string(inner++));
+	}
 
 	// void p_while(Node& p) {
 	// 	require("'while");
@@ -367,7 +372,7 @@ struct Parser : InputFile {
 
 	// --- Expressions --- 
 
-	void   p_intexpr() { p_expr_add() == "int" || error(ERR_EXPECTED_INT); }
+	void   p_intexpr() { p_expr_comp() == "int" || error(ERR_EXPECTED_INT); }
 	// void   p_strexpr(Node& p) { auto t = p_expr_or(p);  t == "string" || t == "string$" || error2("p_strexpr"); }
 	// string p_anyexpr(Node& p) { return p_expr_or(p); }
 
@@ -397,25 +402,36 @@ struct Parser : InputFile {
 	// 	return t;
 	// }
 
-	// string p_expr_comp(Node& p) {
-	// 	auto t = p_expr_add(p);
-	// 	if (expect("@'= @'=") || expect("@'! @'=") || expect("@'<") || expect("@'>") || expect("@'< @'=") || expect("@'> @'=")) {
-	// 		string op = presults.at(0) + (presults.size() > 1 ? presults.at(1) : "");
-	// 		auto lhs = p.pop();
-	// 		auto& l  = p.pushlist();
-	// 		if (t == "string")  t = "string$";  // normalise string
-	// 		if      (t == "int")  l.pushtoken("comp"+op);
-	// 		else if (t == "string$" && op == "==")  l.pushtoken("strcmp");
-	// 		else if (t == "string$" && op == "!=")  l.pushtoken("strncmp");
-	// 		else    error();
-	// 		l.push(lhs);  // reappend lhs
-	// 		auto u = p_expr_add(l);  // parse rhs
-	// 		if (u == "string")  u = "string$";  // normalise string
-	// 		if (t != u)  error();
-	// 		return "int";
-	// 	}
-	// 	return t;
-	// }
+	string p_expr_comp() {
+		auto t = p_expr_add();
+		if (expect("@'= @'=") || expect("@'! @'=") || expect("@'<") || expect("@'>") || expect("@'< @'=") || expect("@'> @'=")) {
+			string op = presults.at(0) + (presults.size() > 1 ? presults.at(1) : "");
+
+			// if (t == "string")  t = "string$";  // normalise string
+			// if      (t == "int")  l.pushtoken("comp"+op);
+			// else if (t == "string$" && op == "==")  l.pushtoken("strcmp");
+			// else if (t == "string$" && op == "!=")  l.pushtoken("strncmp");
+			// else    error();
+			// l.push(lhs);  // reappend lhs
+			// auto u = p_expr_add(l);  // parse rhs
+			// if (u == "string")  u = "string$";  // normalise string
+			// if (t != u)  error();
+			// return "int";
+
+			string opcode;
+			if (op == "==")  opcode = "eq.v";
+			if (op == "!=")  opcode = "neq.v";
+			if (op == "<" )  opcode = "lt.v";
+			if (op == ">" )  opcode = "gt.v";
+			if (op == "<=")  opcode = "lte.v";
+			if (op == ">=")  opcode = "lge.v";
+			
+			auto u = p_expr_add();
+			if (t != "int" || t != u)  error(ERR_EXPECTED_INT);
+			emit({ opcode, "$pop", "$pop" });
+		}
+		return t;
+	}
 	
 	string p_expr_add() {
 		auto t = p_expr_mul();
@@ -456,8 +472,8 @@ struct Parser : InputFile {
 	string p_expr_atom() {
 		if      (expect("'true"))         return emit({ "mov.i", "$push", "true" }),  "int";
 		else if (expect("'false"))        return emit({ "mov.i", "$push", "false" }), "int";
-		// else if (peek("identifier '("))   return p_expr_call(p);
-		// else if (peek("identifier"))      return p_varpath(p);
+		else if (peek("identifier '("))   return p_expr_call();
+		else if (peek("identifier"))      return p_varpath();
 		else if (expect("@identifier"))   return emit({ "mov.v",  "$push", presults.at(0) }), "int";
 		else if (expect("@integer"))      return emit({ "mov.i",  "$push", presults.at(0) }), "int";
 		// else if (expect("@literal"))      return p.pushliteral(presults.at(0)), /*emit({ "copy.s", "$push", presults.at(0) }),*/ "string$";
@@ -465,39 +481,37 @@ struct Parser : InputFile {
 		return error(ERR_UNKNOWN_ATOM), "nil";
 	}
 
-	// string p_varpath(Node& p) {
-	// 	string type = p_varpath_base(p);
-	// 	Node lhs;
-	// 	while (!eof())
-	// 		if       (peek("'."))  lhs = p.pop(),  type = p_varpath_prop(type, p),    p.back().push(lhs);
-	// 		else if  (peek("'["))  lhs = p.pop(),  type = p_varpath_arrpos(type, p),  p.back().push(lhs);
-	// 		else     break;
-	// 	return type;
-	// }
+	string p_varpath() {
+		string type = p_varpath_base();
+		// while (!eof())
+		// 	if       (peek("'."))  lhs = p.pop(),  type = p_varpath_prop(type, p),    p.back().push(lhs);
+		// 	else if  (peek("'["))  lhs = p.pop(),  type = p_varpath_arrpos(type, p),  p.back().push(lhs);
+		// 	else     break;
+		return type;
+	}
 	
-	// string p_varpath_base(Node& p) {
-	// 	require("@identifier");
-	// 	auto name = presults.at(0);
-	// 	auto& l   = p.pushlist();
-	// 	// local vars
-	// 	if (cfuncname.length() && functions.at(cfuncname).args.count(name)) {
-	// 		auto& d = functions.at(cfuncname).args.at(name);
-	// 		l.pushtokens({ "get_local", d.name, d.type });
-	// 		return d.type;
-	// 	}
-	// 	else if (cfuncname.length() && functions.at(cfuncname).locals.count(name)) {
-	// 		auto& d = functions.at(cfuncname).locals.at(name);
-	// 		l.pushtokens({ "get_local", d.name, d.type });
-	// 		return d.type;
-	// 	}
-	// 	// global vars
-	// 	else if (globals.count(name)) {
-	// 		auto&d = globals[name];
-	// 		l.pushtokens({ "get_global", d.name, d.type });
-	// 		return d.type;
-	// 	}
-	// 	else  return error(), "nil";
-	// }
+	string p_varpath_base() {
+		require("@identifier");
+		auto name = presults.at(0);
+		// local vars
+		if (cfuncname.length() && functions.at(cfuncname).args.count(name)) {
+			auto& d = functions.at(cfuncname).args.at(name);
+			emit({ "mov.v", "$push", presults.at(0) });
+			return d.type;
+		}
+		else if (cfuncname.length() && functions.at(cfuncname).locals.count(name)) {
+			auto& d = functions.at(cfuncname).locals.at(name);
+			emit({ "mov.v", "$push", presults.at(0) });
+			return d.type;
+		}
+		// global vars
+		else if (globals.count(name)) {
+			auto&d = globals[name];
+			emit({ "mov.v", "$push", presults.at(0) });
+			return d.type;
+		}
+		else  return error(ERR_UNDEFINED_VARIABLE), "nil";
+	}
 
 	// string p_varpath_prop(const string& type, Node& p) {
 	// 	require("'. @identifier");
