@@ -2,6 +2,7 @@
 #include <fstream>
 #include "inputfile.hpp"
 #include "parser.hpp"
+#include "asm.hpp"
 using namespace std;
 
 
