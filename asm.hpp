@@ -41,11 +41,13 @@ struct ASM {
 	vector<string> splitln(const string& str) {
 		vector<string> vs;
 		string s;
-		int instr = 0;
+		int instr = 0, incomment = 0;
 		for (auto c : str)
-			if      (instr == 1)  { if (c == '\\') instr = 2;  else { s += c;  if (c == '"') instr = 0; } }
+			if      (incomment)   { s += c; }
+			else if (instr == 1)  { if (c == '\\') instr = 2;  else { s += c;  if (c == '"') instr = 0; } }
 			else if (instr == 2)  { s += escapechar(c);  instr = 1; }
 			else if (isspace(c))  { if (s.length()) vs.push_back(s), s = ""; }
+			else if (c == ';')    { if (s.length()) vs.push_back(s), s = "";  s += c;  incomment = 1; }
 			else if (c == '"')    { if (s.length()) vs.push_back(s), s = "";  s += c;  instr = 1; }
 			else                  { s += c; }
 		if (s.length())  vs.push_back(s);
@@ -104,8 +106,9 @@ struct ASM {
 		pc = findlabel(label);
 	}
 	void ret() {
-		if (fstack.size() == 0)  throw DBRunError("framestack_underflow", pc);
-		pc = fstack.back().at("$ret");
+		// if (fstack.size() == 0)  throw DBRunError("framestack_underflow", pc);
+		// pc = fstack.back().at("$ret");
+		pc = frame().at("$ret");
 		fstack.pop_back();
 	}
 
@@ -113,13 +116,13 @@ struct ASM {
 	// --- memory access ---
 	int32_t& var(const string& id) {
 		try                    { return frame().at(id); }
-		catch (out_of_range e) { throw DBRunError("local_var_undefined", pc); }
+		catch (out_of_range e) { throw DBRunError("local_var_undefined "+id, pc); }
 	}
 	int32_t& var_global(const string& id) {
 		try                    { return globals.at(id); }
-		catch (out_of_range e) { throw DBRunError("global_var_undefined", pc); }
+		catch (out_of_range e) { throw DBRunError("global_var_undefined "+id, pc); }
 	}
-	StackFrame frame() {
+	StackFrame& frame() {
 		try                    { return fstack.at(fstack.size() - 1); }
 		catch (out_of_range e) { throw DBRunError("framestack_underflow", pc); }
 	}
@@ -174,11 +177,16 @@ struct ASM {
 	// --- main loop ---
 	void mainloop() {
 		int32_t t = 0;
-		string s;
-		pc = 0;
+		// string s;
+		// pc = 0;
 
 		while (pc < prog.size()) {
 			const auto& cmd = prog.at(pc);
+			
+			// printf("%02d    ", pc );
+			// for (auto c : cmd)  printf("%s ", c.c_str() );
+			// printf("\n");
+			
 			// meta
 			if      (cmd.size() == 0)            ;  // noop
 			else if (cmd[0].front() == ';')      ;  // comment line
@@ -190,7 +198,7 @@ struct ASM {
 			else if (cmd[0] == "get_global")     push( var_global(cmd[1]) );
 			else if (cmd[0] == "set")            var(cmd[1]) = pop();
 			else if (cmd[0] == "set_global")     var_global(cmd[1]) = pop();
-			else if (cmd[0] == "i")              push( stoi(cmd[2]) );
+			else if (cmd[0] == "i")              push( stoi(cmd[1]) );
 			// basic
 			else if (cmd[0] == "add")            t = pop(),  peek() += t;
 			else if (cmd[0] == "sub")            t = pop(),  peek() -= t;
@@ -205,8 +213,8 @@ struct ASM {
 			else if (cmd[0] == "drop")           pop();
 			// control
 			else if (cmd[0] == "jump")           pc = findlabel(cmd[1]);
-			else if (cmd[0] == "jumpif")         pc = var(cmd[2]) ? findlabel(cmd[1]) : pc;
-			else if (cmd[0] == "jumpifn")        pc = var(cmd[2]) ? pc : findlabel(cmd[1]);
+			else if (cmd[0] == "jumpif")         pc = pop() ? findlabel(cmd[1]) : pc;
+			else if (cmd[0] == "jumpifn")        pc = pop() ? pc : findlabel(cmd[1]);
 			else if (cmd[0] == "call")           call(cmd[1]);
 			else if (cmd[0] == "ret")            ret();
 			else if (cmd[0] == "halt")           break;

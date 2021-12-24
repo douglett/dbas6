@@ -7,19 +7,23 @@ using namespace std;
 
 
 int main() {
-	printf("hello world\n");
-	printf("---\n");
+	printf("dbas-6 running...\n");
+	// printf("---\n");
 
 	Parser p;
 	p.load("scripts/test.bas");
 
 	p.p_program();
-	// p.prog.show();
-	printf("---\n");
+	// printf("---\n");
 	fstream fs("bin/output.asm", ios::out);
 	for (const auto& ln : p.prog2) {
-		cout << ln << endl;
+		// cout << ln << endl;
 		fs   << ln << endl;
 	}
+	fs.close();
 	printf("---\n");
+
+	ASM a;
+	a.load("bin/output.asm");
+	a.mainloop();
 }

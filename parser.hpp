@@ -36,6 +36,9 @@ struct Parser : InputFile {
 		flag_lastret = (vs.size() && vs.at(0) == "ret");
 		prog2.push_back( "\t" + join(vs) + (c.length() ? COMMENT_SEP + c : "") );
 	}
+	// void emit_at(int32_t pos, const vector<string>& vs, const string& c="") {
+	// 	prog2.at(pos) = "\t" + join(vs) + (c.length() ? COMMENT_SEP + c : "");
+	// }
 	void emitl(const string& s, const string& c="") {
 		prog2.push_back( s + ":" + (c.length() ? COMMENT_SEP + c : "") );
 	}
@@ -53,7 +56,7 @@ struct Parser : InputFile {
 	void p_program() {
 		prog2     = {};
 		cfuncname = ctypename = "",  flag_while = flag_lastret = flag_ctrlpoint = 0;
-		p_section("type_defs");
+		// p_section("type_defs");
 		p_section("dim_global");
 		emit({ "call", "main" });
 		emit({ "halt" });
@@ -101,7 +104,7 @@ struct Parser : InputFile {
 
 	void p_dim() {
 		dsym();
-		const string loc = cfuncname.length() ? "local" : "global";
+		const int isglobal = cfuncname.length() == 0;
 		string name, type;
 		if      (expect("'dim @identifier @identifier"))         name = presults.at(1), type = presults.at(0);
 		else if (expect("'dim @identifier '[ '] @identifier"))   name = presults.at(1), type = presults.at(0) + "[]";
@@ -116,7 +119,7 @@ struct Parser : InputFile {
 			namecollision(name);
 			if    (!cfuncname.length())  globals[name] = { name, type };
 			else  functions.at(cfuncname).locals[name] = { name, type };
-			emit({ "let", name }, type);
+			emit({ (isglobal ? "let_global" : "let"), name }, type);
 			// -- initialisers (TODO: bit messy)
 			if (type == "int") {
 				// int initialisation
@@ -124,7 +127,7 @@ struct Parser : InputFile {
 					// auto& l = setup.pushlist();
 					// l.pushtokens({ "set_"+loc, name, type });
 					p_intexpr();
-					emit({ "mov.v", name, "$pop" });
+					emit({ (isglobal ? "set_global" : "set"), name });
 				}
 			}
 			// else if (is_arraytype(type)) {
@@ -184,7 +187,7 @@ struct Parser : InputFile {
 		// emit arguments
 		if (argc) {
 			for (int i = argc-1; i >= 0; i--)
-				emit({ "mov.v", argat(cfuncname, i).name, "$pop" });
+				emit({ "set", argat(cfuncname, i).name }, "argument "+to_string(i));
 		}
 		// local dims
 		while (!eof())
@@ -198,7 +201,7 @@ struct Parser : InputFile {
 		// end function
 		require("'end 'function endl"), nextline();
 		if (!flag_lastret) {
-			emit({ "mov.i", "$push", "0" });
+			emit({ "i", "0" }, "default return value");
 			emit({ "ret" });
 		}
 		cfuncname = "";
@@ -223,14 +226,9 @@ struct Parser : InputFile {
 	}
 
 	void p_let() {
-		dsym();
 		// require("'let");
 		// auto t = p_varpath_set(p);
 		// require("'=");
-		require("'let @identifier '=");
-		auto id = presults.at(0);
-		p_intexpr();
-		emit({ "mov.v", id, "$pop" });
 		// if (t == "int") {
 		// 	auto& l = p.back();
 		// 	p_intexpr(l), require("endl"), nextline();
@@ -242,6 +240,14 @@ struct Parser : InputFile {
 		// 	p_strexpr(l), require("endl"), nextline();
 		// }
 		// else  error();
+
+		dsym();
+		require("'let @identifier '=");
+		auto name = presults.at(0);
+		p_intexpr();
+		if (cfuncname.length() && functions.at(cfuncname).args.count(name))  emit({ "set", name });
+		else if (cfuncname.length() && functions.at(cfuncname).locals.count(name))  emit({ "set", name });
+		else if (globals.count(name))  emit({ "set_global", name });
 	}
 
 	void p_call() {
@@ -257,10 +263,10 @@ struct Parser : InputFile {
 		require("'print");
 		while (!eol())
 			if      (peek("endl"))        break;
-			else if (expect("',"))        emit({ "print.s", "\" \"" });
-			else if (expect("';"))        emit({ "print.s", "\"\t\"" });
-			else if (expect("@literal"))  emit({ "print.s", presults.at(0) });
-			else    p_intexpr(), emit({ "print.v", "$pop" });
+			else if (expect("',"))        emit({ "print_lit", "\" \"" });
+			else if (expect("';"))        emit({ "print_lit", "\"\t\"" });
+			else if (expect("@literal"))  emit({ "print_lit", presults.at(0) });
+			else    p_intexpr(), emit({ "print" });
 			// else {
 			// 	auto& ex = l.pushcmdlist("int_expr");
 			// 	auto  t  = p_anyexpr(ex);
@@ -268,7 +274,7 @@ struct Parser : InputFile {
 			// 	else if (t == "string" || t == "string$")  ex.at(0).tok = "string_expr";
 			// 	else    error2("p_print");
 			// }
-		emit({ "print.s", "\"\\n\"" });
+		emit({ "print_lit", "\"\\n\"" });
 		require("endl"), nextline();
 	}
 
@@ -295,7 +301,7 @@ struct Parser : InputFile {
 	void p_return() {
 		dsym();
 		require("'return");
-		if    (expect("endl"))  emit({ "mov.i", "$push", "0" });
+		if    (expect("endl"))  emit({ "i", "0" }, "default return command");
 		else  p_intexpr();
 		require("endl"), nextline();
 		emit({ "ret" });
@@ -328,20 +334,37 @@ struct Parser : InputFile {
 	// }
 
 	void p_if() {
-		dsym();
 		require("'if");
-		int point = ++flag_ctrlpoint, inner = 1;
-		string pname = "$ctrlpoint_"+to_string(point)+"_";
-		emitl("$ctrlpoint_"+to_string(point));
-			p_intexpr(), require("endl"), nextline();  // first comparison
-			emit({ "jumpifn", pname+to_string(inner), "$pop" }, "first condition");
-			p_block();  // first comparison
-		// while (expect("'else 'if"))
-		// 	p_intexpr(l), require("endl"), nextline(), p_block(l);  // else-if statements
-		// if (expect("'else endl"))
-		// 	l.pushtoken("true"), require("endl"), nextline(), p_block(l);  // last else
-		require("'end 'if endl"), nextline();  // block end
-		emitl(pname+to_string(inner++));
+		int ifcount = ++flag_ctrlpoint, cond = 0;
+		string iflabel = "$ctrl_if_" + to_string(ifcount) + "_";
+		emitl(iflabel + "start");
+		dsym();
+		// first comparison
+		p_intexpr(), require("endl"), nextline();
+		emit({ "jumpifn", iflabel + to_string(cond+1) }, "first condition");
+		p_block();
+		emit({ "jump", iflabel + "end" });
+		// else-if statements
+		while (expect("'else 'if")) {
+			emitl(iflabel + to_string(++cond));
+			dsym();
+			p_intexpr(), require("endl"), nextline();
+			emit({ "jumpifn", iflabel+to_string(cond+1) }, "condition "+to_string(cond));
+			p_block();
+			// place.push_back( emit_placeholder() );
+			emit({ "jump", iflabel + "end" });
+		}
+		// if all conditions fail, we end up here
+		emitl(iflabel + to_string(++cond));
+		// last else, guaranteed execution
+		if (expect("'else endl")) {
+			dsym();
+			nextline();
+			p_block();
+		}
+		// block end
+		require("'end 'if endl"), nextline();
+		emitl(iflabel + "end");  // jump here from end of if-block
 	}
 
 	// void p_while(Node& p) {
@@ -405,16 +428,16 @@ struct Parser : InputFile {
 			// return "int";
 
 			string opcode;
-			if (op == "==")  opcode = "eq.v";
-			if (op == "!=")  opcode = "neq.v";
-			if (op == "<" )  opcode = "lt.v";
-			if (op == ">" )  opcode = "gt.v";
-			if (op == "<=")  opcode = "lte.v";
-			if (op == ">=")  opcode = "lge.v";
+			if (op == "==")  opcode = "eq";
+			if (op == "!=")  opcode = "neq";
+			if (op == "<" )  opcode = "lt";
+			if (op == ">" )  opcode = "gt";
+			if (op == "<=")  opcode = "lte";
+			if (op == ">=")  opcode = "lte";
 			
 			auto u = p_expr_add();
 			if (t != "int" || t != u)  error(ERR_EXPECTED_INT);
-			emit({ opcode, "$pop", "$pop" });
+			emit({ opcode });
 		}
 		return t;
 	}
@@ -433,10 +456,10 @@ struct Parser : InputFile {
 			// if (t != u)  error();
 			// if (t == "int")  emit({ (sign == "+" ? "add.v" : "sub.v"), "$top", "$pop" });
 			
-			string opcode = presults.at(0) == "+" ? "add.v" : "sub.v";
+			string opcode = presults.at(0) == "+" ? "add" : "sub";
 			auto u = p_expr_mul();
 			if (t != "int" || t != u)  error(ERR_EXPECTED_INT);  // ERR_UNMATCHED_TYPES
-			emit({ opcode, "$peek", "$pop" });
+			emit({ opcode });
 		}
 		return t;
 	}
@@ -444,21 +467,20 @@ struct Parser : InputFile {
 	string p_expr_mul() {
 		auto t = p_expr_atom();
 		while (expect("@'*") || expect("@'/")) {
-			string opcode = presults.at(0) == "*" ? "mul.v" : "div.v";
+			string opcode = presults.at(0) == "*" ? "mul" : "div";
 			auto u = p_expr_atom();
 			if (t != "int" || t != u)  error(ERR_EXPECTED_INT);
-			emit({ opcode, "$peek", "$pop" });
+			emit({ opcode });
 		}
 		return t;
 	}
 	
 	string p_expr_atom() {
-		if      (expect("'true"))         return emit({ "mov.i", "$push", "true" }),  "int";
-		else if (expect("'false"))        return emit({ "mov.i", "$push", "false" }), "int";
+		if      (expect("'true"))         return emit({ "i", "1" }, "true" ),  "int";
+		else if (expect("'false"))        return emit({ "i", "0" }, "false"), "int";
+		else if (expect("@integer"))      return emit({ "i", presults.at(0) }), "int";
 		else if (peek("identifier '("))   return p_expr_call();
 		else if (peek("identifier"))      return p_varpath();
-		else if (expect("@identifier"))   return emit({ "mov.v",  "$push", presults.at(0) }), "int";
-		else if (expect("@integer"))      return emit({ "mov.i",  "$push", presults.at(0) }), "int";
 		// else if (expect("@literal"))      return p.pushliteral(presults.at(0)),  "string$";
 		else if (eol())                   error(ERR_UNEXPECTED_EOL);
 		return error(ERR_UNKNOWN_ATOM), "nil";
@@ -479,18 +501,18 @@ struct Parser : InputFile {
 		// local vars
 		if (cfuncname.length() && functions.at(cfuncname).args.count(name)) {
 			auto& d = functions.at(cfuncname).args.at(name);
-			emit({ "mov.v", "$push", presults.at(0) });
+			emit({ "get", name });
 			return d.type;
 		}
 		else if (cfuncname.length() && functions.at(cfuncname).locals.count(name)) {
 			auto& d = functions.at(cfuncname).locals.at(name);
-			emit({ "mov.v", "$push", presults.at(0) });
+			emit({ "get", name });
 			return d.type;
 		}
 		// global vars
 		else if (globals.count(name)) {
 			auto&d = globals[name];
-			emit({ "mov.v", "$push", presults.at(0) });
+			emit({ "get_global", name });
 			return d.type;
 		}
 		else  return error(ERR_UNDEFINED_VARIABLE), "nil";

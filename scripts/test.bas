@@ -21,16 +21,9 @@ function main()
 	let a = 10 + square(4)
 	print "inline call result:", a
 	
-	if a == 10
-		print "a is 10!"
-	# else
-		# print "a is NOT 10!"
+	if a == 26
+		print "a is 26!"
+	else
+		print "a is NOT 26!"
 	end if
-	# call f(20)
-
-# 	# let b = "blah" + "_" + "flob"
-# 	# # let b = "ass"
-# 	# print "[" b "]"
-
-# 	# print "fart" + "butt"; "poop"
 end function
