@@ -31,7 +31,12 @@ struct Parser : InputFile {
 	int flag_while = 0, flag_lastret = 0, flag_ctrlpoint = 0;  // parse flags
 
 
+	
+	// --- Emit asm ---
+	
 	const string COMMENT_SEP = "\t ; ";
+	vector<string> while_labels;  // emit state
+	
 	void emit(const vector<string>& vs, const string& c="") {
 		flag_lastret = (vs.size() && vs.at(0) == "ret");
 		prog2.push_back( "\t" + join(vs) + (c.length() ? COMMENT_SEP + c : "") );
@@ -218,10 +223,10 @@ struct Parser : InputFile {
 			// else if (peek("'input"))      p_input(l);
 			// else if (peek("'redim"))      p_redim(l);
 			else if (peek("'return"))     p_return();
-			// else if (peek("'break"))      p_break(l);
-			// else if (peek("'continue"))   p_continue(l);
+			else if (peek("'break"))      p_break();
+			else if (peek("'continue"))   p_continue();
 			else if (peek("'if"))         p_if();
-			// else if (peek("'while"))      p_while(l);
+			else if (peek("'while"))      p_while();
 			else    error(ERR_UNKNOWN_COMMAND);
 	}
 
@@ -307,55 +312,55 @@ struct Parser : InputFile {
 		emit({ "ret" });
 	}
 
-	// void p_break(Node& p) {
-	// 	require("'break");
-	// 	if (!flag_while)  error2("p_break");
-	// 	auto& l = p.pushcmdlist("break");
-	// 	if (expect("@integer")) {
-	// 		int i = stoi(presults.at(0));  // specified break level
-	// 		if (i < 1 || i > flag_while)  error2("break level");
-	// 		l.pushint(i);
-	// 	}
-	// 	else  l.pushint(1);  // default break level (1)
-	// 	require("endl"), nextline();
-	// }
+	void p_break() {
+		dsym();
+		require("'break");
+		if (!flag_while)  error(ERR_BREAK_OUTSIDE_LOOP);
+		int break_level = 1;
+		if (expect("@integer")) {
+			break_level = stoi(presults.at(0));  // specified break level
+			if (break_level < 1 || break_level > flag_while)  error(ERR_BREAK_LEVEL_BAD);
+		}
+		require("endl"), nextline();
+		emit({ "jump", while_labels.at(flag_while - break_level) + "end" });
+	}
 
-	// void p_continue(Node& p) {
-	// 	require("'continue");
-	// 	if (!flag_while)  error2("p_continue");
-	// 	auto& l = p.pushcmdlist("continue");
-	// 	if (expect("@integer")) {
-	// 		int i = stoi(presults.at(0));  // specified continue level
-	// 		if (i < 1 || i > flag_while)  error2("continue level");
-	// 		l.pushint(i);
-	// 	}
-	// 	else  l.pushint(1);  // default continue level (1)
-	// 	require("endl"), nextline();
-	// }
+	void p_continue() {
+		dsym();
+		require("'continue");
+		if (!flag_while)  error(ERR_CONTINUE_OUTSIDE_LOOP);
+		int cont_level = 1;
+		if (expect("@integer")) {
+			int cont_level = stoi(presults.at(0));  // specified continue level
+			if (cont_level < 1 || cont_level > flag_while)  error(ERR_CONTINUE_LEVEL_BAD);
+		}
+		require("endl"), nextline();
+		emit({ "jump", while_labels.at(flag_while - cont_level) + "start" });
+	}
 
 	void p_if() {
 		require("'if");
-		int ifcount = ++flag_ctrlpoint, cond = 0;
-		string iflabel = "$ctrl_if_" + to_string(ifcount) + "_";
-		emitl(iflabel + "start");
+		int cond = 0;
+		string label = "$ctrl_if_" + to_string(++flag_ctrlpoint) + "_";
+		emitl(label + "start");
 		dsym();
 		// first comparison
 		p_intexpr(), require("endl"), nextline();
-		emit({ "jumpifn", iflabel + to_string(cond+1) }, "first condition");
+		emit({ "jumpifn", label + to_string(cond+1) }, "first condition");
 		p_block();
-		emit({ "jump", iflabel + "end" });
+		emit({ "jump", label + "end" });
 		// else-if statements
 		while (expect("'else 'if")) {
-			emitl(iflabel + to_string(++cond));
+			emitl(label + to_string(++cond));
 			dsym();
 			p_intexpr(), require("endl"), nextline();
-			emit({ "jumpifn", iflabel+to_string(cond+1) }, "condition "+to_string(cond));
+			emit({ "jumpifn", label+to_string(cond+1) }, "condition "+to_string(cond));
 			p_block();
 			// place.push_back( emit_placeholder() );
-			emit({ "jump", iflabel + "end" });
+			emit({ "jump", label + "end" });
 		}
 		// if all conditions fail, we end up here
-		emitl(iflabel + to_string(++cond));
+		emitl(label + to_string(++cond));
 		// last else, guaranteed execution
 		if (expect("'else endl")) {
 			dsym();
@@ -364,18 +369,27 @@ struct Parser : InputFile {
 		}
 		// block end
 		require("'end 'if endl"), nextline();
-		emitl(iflabel + "end");  // jump here from end of if-block
+		emitl(label + "end");
 	}
 
-	// void p_while(Node& p) {
-	// 	require("'while");
-	// 	flag_while++;
-	// 	auto& l = p.pushcmdlist("while");
-	// 	p_intexpr(l), nextline();
-	// 	p_block(l);
-	// 	require("'end 'while endl"), nextline();
-	// 	flag_while--;
-	// }
+	void p_while() {
+		require("'while");
+		flag_while++;
+		string label = "$ctrl_while_" + to_string(++flag_ctrlpoint) + "_";
+		while_labels.push_back(label);
+		emitl(label + "start");
+		dsym();
+		// comparison
+		p_intexpr(), require("endl"), nextline();
+		emit({ "jumpifn", label + "end" });
+		p_block();
+		// block end
+		require("'end 'while endl"), nextline();
+		emit({ "jump", label + "start" });  // loop
+		emitl(label + "end");
+		while_labels.pop_back();
+		flag_while--;
+	}
 
 
 
@@ -413,7 +427,7 @@ struct Parser : InputFile {
 
 	string p_expr_comp() {
 		auto t = p_expr_add();
-		if (expect("@'= @'=") || expect("@'! @'=") || expect("@'<") || expect("@'>") || expect("@'< @'=") || expect("@'> @'=")) {
+		if (expect("@'= @'=") || expect("@'! @'=") || expect("@'< @'=") || expect("@'> @'=") || expect("@'<") || expect("@'>")) {
 			string op = presults.at(0) + (presults.size() > 1 ? presults.at(1) : "");
 
 			// if (t == "string")  t = "string$";  // normalise string
@@ -433,7 +447,7 @@ struct Parser : InputFile {
 			if (op == "<" )  opcode = "lt";
 			if (op == ">" )  opcode = "gt";
 			if (op == "<=")  opcode = "lte";
-			if (op == ">=")  opcode = "lte";
+			if (op == ">=")  opcode = "gte";
 			
 			auto u = p_expr_add();
 			if (t != "int" || t != u)  error(ERR_EXPECTED_INT);

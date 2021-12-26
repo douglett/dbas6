@@ -29,6 +29,10 @@ enum DB_PARSE_ERROR {
 	ERR_ARGUMENT_INDEX_MISSING,
 	// commands
 	ERR_UNKNOWN_COMMAND,
+	ERR_BREAK_OUTSIDE_LOOP,
+	ERR_BREAK_LEVEL_BAD,
+	ERR_CONTINUE_OUTSIDE_LOOP,
+	ERR_CONTINUE_LEVEL_BAD,
 	// definitions
 	ERR_UNEXPECTED_KEYWORD,
 	ERR_ALREADY_DEFINED,
@@ -36,9 +40,11 @@ enum DB_PARSE_ERROR {
 };
 string error_message(DB_PARSE_ERROR err) {
 	switch (err) {
+	// generic errors
 	case ERR_SYNTAX_ERROR:                 return "ERR_SYNTAX_ERROR";
 	case ERR_UNEXPECTED_EOL:               return "ERR_UNEXPECTED_EOL";
 	case ERR_EXPECTED_EOF:                 return "ERR_EXPECTED_EOF";
+	// expressions
 	case ERR_UNKNOWN_ATOM:                 return "ERR_UNKNOWN_ATOM";
 	case ERR_EXPECTED_INT:                 return "ERR_EXPECTED_INT";
 	case ERR_UNMATCHED_TYPES:              return "ERR_UNMATCHED_TYPES";
@@ -47,7 +53,13 @@ string error_message(DB_PARSE_ERROR err) {
 	case ERR_UNDEFINED_FUNCTION:           return "ERR_UNDEFINED_FUNCTION";
 	case ERR_ARGUMENT_COUNT_MISMATCH:      return "ERR_ARGUMENT_COUNT_MISMATCH";
 	case ERR_ARGUMENT_INDEX_MISSING:       return "ERR_ARGUMENT_INDEX_MISSING";
+	// commands
 	case ERR_UNKNOWN_COMMAND:              return "ERR_UNKNOWN_COMMAND";
+	case ERR_BREAK_OUTSIDE_LOOP:           return "ERR_BREAK_OUTSIDE_LOOP";
+	case ERR_BREAK_LEVEL_BAD:              return "ERR_BREAK_LEVEL_BAD";
+	case ERR_CONTINUE_OUTSIDE_LOOP:        return "ERR_CONTINUE_OUTSIDE_LOOP";
+	case ERR_CONTINUE_LEVEL_BAD:           return "ERR_CONTINUE_LEVEL_BAD";
+	// definitions
 	case ERR_UNEXPECTED_KEYWORD:           return "ERR_UNEXPECTED_KEYWORD";
 	case ERR_ALREADY_DEFINED:              return "ERR_ALREADY_DEFINED";
 	case ERR_CIRCULAR_DEFINITION:          return "ERR_CIRCULAR_DEFINITION";

@@ -11,8 +11,7 @@ function square(int a)
 end function
 
 function main()
-	dim b = 500
-	dim c = 0
+	dim b = 500, c = 0, i
 	let c = 5+5-3-2+1
 	print "a, b, c is:", a, b, c
 
@@ -26,4 +25,14 @@ function main()
 	else
 		print "a is NOT 26!"
 	end if
+
+	while true
+		let i = i + 1
+		print i
+		if i >= 10
+			break
+		end if
+		continue
+		print "nope lol"
+	end while
 end function
