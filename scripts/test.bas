@@ -35,4 +35,8 @@ function main()
 		continue
 		print "nope lol"
 	end while
+
+	for i = 1 to 10
+		print i
+	end for
 end function

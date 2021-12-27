@@ -5,6 +5,7 @@
 #include "helpers.hpp"
 #include "inputfile.hpp"
 #include <map>
+#include <ctime>
 using namespace std;
 
 
@@ -53,6 +54,14 @@ struct Parser : InputFile {
 	void dsym() {
 		emitc("DSYM " + to_string(lno) + "   " + peekline());
 	}
+	void emit_header() {
+		emitc("");
+		time_t now = time(NULL);
+		string timestr = ctime(&now);
+		timestr.pop_back();
+		emitc("compiled on:  " + timestr);
+		emitc("");
+	}
 
 
 
@@ -61,6 +70,8 @@ struct Parser : InputFile {
 	void p_program() {
 		prog2     = {};
 		cfuncname = ctypename = "",  flag_while = flag_lastret = flag_ctrlpoint = 0;
+		while_labels = {};
+		emit_header();
 		// p_section("type_defs");
 		p_section("dim_global");
 		emit({ "call", "main" });
@@ -227,6 +238,7 @@ struct Parser : InputFile {
 			else if (peek("'continue"))   p_continue();
 			else if (peek("'if"))         p_if();
 			else if (peek("'while"))      p_while();
+			else if (peek("'for"))        p_for();
 			else    error(ERR_UNKNOWN_COMMAND);
 	}
 
@@ -250,7 +262,7 @@ struct Parser : InputFile {
 		require("'let @identifier '=");
 		auto name = presults.at(0);
 		p_intexpr();
-		if (cfuncname.length() && functions.at(cfuncname).args.count(name))  emit({ "set", name });
+		if      (cfuncname.length() && functions.at(cfuncname).args.count(name))    emit({ "set", name });
 		else if (cfuncname.length() && functions.at(cfuncname).locals.count(name))  emit({ "set", name });
 		else if (globals.count(name))  emit({ "set_global", name });
 	}
@@ -382,9 +394,39 @@ struct Parser : InputFile {
 		// comparison
 		p_intexpr(), require("endl"), nextline();
 		emit({ "jumpifn", label + "end" });
+		// main block
 		p_block();
 		// block end
 		require("'end 'while endl"), nextline();
+		emit({ "jump", label + "start" });  // loop
+		emitl(label + "end");
+		while_labels.pop_back();
+		flag_while--;
+	}
+
+	void p_for() {
+		require("'for");
+		flag_while++;  // lets say this is a while loop of sorts
+		string name, label = "$ctrl_for_" + to_string(++flag_ctrlpoint) + "_";
+		while_labels.push_back(label);
+		emitl(label + "pre_start");
+		dsym();
+		// from-value
+		require("@identifier '="), name = presults.at(0), p_intexpr();
+		emit({ "set", name }, "initialize");
+		emitl(label + "start");
+		// to-value and bounds check
+		emit({ "get", name });
+		require("'to"), p_intexpr();
+		emit({ "lte" });
+		emit({ "jumpifn", label + "end" }, "test iteration");
+		// step (TODO)
+		require("endl"), nextline();
+		// main block
+		p_block();
+		// block end
+		require("'end 'for endl"), nextline();
+		emit({ "get", name }), emit({ "i", "1" }), emit({ "add" }), emit({ "set", name });  // iterate
 		emit({ "jump", label + "start" });  // loop
 		emitl(label + "end");
 		while_labels.pop_back();
