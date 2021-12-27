@@ -29,7 +29,7 @@ struct Parser : InputFile {
 	map<string, Prog::Dim>  globals;
 	map<string, Prog::Func> functions;
 	string cfuncname, ctypename;
-	int flag_while = 0, flag_lastret = 0, flag_ctrlpoint = 0;  // parse flags
+	int flag_while = 0, flag_lastret = 0, flag_ctrlcount = 0;  // parse flags
 
 
 	
@@ -45,8 +45,8 @@ struct Parser : InputFile {
 	// void emit_at(int32_t pos, const vector<string>& vs, const string& c="") {
 	// 	prog2.at(pos) = "\t" + join(vs) + (c.length() ? COMMENT_SEP + c : "");
 	// }
-	void emitl(const string& s, const string& c="") {
-		prog2.push_back( s + ":" + (c.length() ? COMMENT_SEP + c : "") );
+	void emitl(const string& s) {
+		prog2.push_back( s + ":" );
 	}
 	void emitc(const string& c) {
 		prog2.push_back( "\t; " + c );
@@ -69,7 +69,8 @@ struct Parser : InputFile {
 
 	void p_program() {
 		prog2     = {};
-		cfuncname = ctypename = "",  flag_while = flag_lastret = flag_ctrlpoint = 0;
+		flag_while = flag_lastret = flag_ctrlcount = 0;
+		cfuncname = ctypename = "";
 		while_labels = {};
 		emit_header();
 		// p_section("type_defs");
@@ -353,7 +354,7 @@ struct Parser : InputFile {
 	void p_if() {
 		require("'if");
 		int cond = 0;
-		string label = "$ctrl_if_" + to_string(++flag_ctrlpoint) + "_";
+		string label = "$if_" + to_string(++flag_ctrlcount) + "_";
 		emitl(label + "start");
 		dsym();
 		// first comparison
@@ -387,7 +388,7 @@ struct Parser : InputFile {
 	void p_while() {
 		require("'while");
 		flag_while++;
-		string label = "$ctrl_while_" + to_string(++flag_ctrlpoint) + "_";
+		string label = "$while_" + to_string(++flag_ctrlcount) + "_";
 		while_labels.push_back(label);
 		emitl(label + "start");
 		dsym();
@@ -407,7 +408,7 @@ struct Parser : InputFile {
 	void p_for() {
 		require("'for");
 		flag_while++;  // lets say this is a while loop of sorts
-		string name, label = "$ctrl_for_" + to_string(++flag_ctrlpoint) + "_";
+		string name, label = "$for_" + to_string(++flag_ctrlcount) + "_";
 		while_labels.push_back(label);
 		emitl(label + "pre_start");
 		dsym();
@@ -437,35 +438,29 @@ struct Parser : InputFile {
 
 	// --- Expressions --- 
 
-	void   p_intexpr() { p_expr_comp() == "int" || error(ERR_EXPECTED_INT); }
+	void   p_intexpr() { p_expr_or() == "int" || error(ERR_EXPECTED_INT); }
 	// void   p_strexpr(Node& p) { auto t = p_expr_or(p);  t == "string" || t == "string$" || error2("p_strexpr"); }
 	// string p_anyexpr(Node& p) { return p_expr_or(p); }
 
-	// string p_expr_or(Node& p) {
-	// 	auto t = p_expr_and(p);
-	// 	if (expect("'| '|")) {
-	// 		auto lhs = p.pop();
-	// 		auto& l  = p.pushlist();
-	// 			l.pushtoken("or");
-	// 			l.push(lhs);
-	// 		auto u = p_expr_or(l);  // parse rhs
-	// 		if (t != "int" || t != u)  error();
-	// 	}
-	// 	return t;
-	// }
+	string p_expr_or() {
+		auto t = p_expr_and();
+		if (expect("'| '|")) {
+			auto u = p_expr_or();
+			if (t != "int" || t != u)  error(ERR_EXPECTED_INT);
+			emit({ "or" });
+		}
+		return t;
+	}
 
-	// string p_expr_and(Node& p) {
-	// 	auto t = p_expr_comp(p);
-	// 	if (expect("'& '&")) {
-	// 		auto lhs = p.pop();
-	// 		auto& l  = p.pushlist();
-	// 			l.pushtoken("and");
-	// 			l.push(lhs);
-	// 		auto u = p_expr_and(l);  // parse rhs
-	// 		if (t != "int" || t != u)  error();
-	// 	}
-	// 	return t;
-	// }
+	string p_expr_and() {
+		auto t = p_expr_comp();
+		if (expect("'& '&")) {
+			auto u = p_expr_and();
+			if (t != "int" || t != u)  error(ERR_EXPECTED_INT);
+			emit({ "and" });
+		}
+		return t;
+	}
 
 	string p_expr_comp() {
 		auto t = p_expr_add();

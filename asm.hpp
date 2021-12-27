@@ -204,6 +204,8 @@ struct ASM {
 			else if (cmd[0] == "sub")            t = pop(),  peek() -= t;
 			else if (cmd[0] == "mul")            t = pop(),  peek() *= t;
 			else if (cmd[0] == "div")            t = pop(),  peek() /= t;
+			else if (cmd[0] == "or")             t = pop(),  peek() =  peek() || t;
+			else if (cmd[0] == "and")            t = pop(),  peek() =  peek() && t;
 			else if (cmd[0] == "eq")             t = pop(),  peek() =  peek() == t;
 			else if (cmd[0] == "neq")            t = pop(),  peek() =  peek() != t;
 			else if (cmd[0] == "lt")             t = pop(),  peek() =  peek() <  t;

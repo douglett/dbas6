@@ -26,7 +26,7 @@ function main()
 		print "a is NOT 26!"
 	end if
 
-	while true
+	while true && true || false
 		let i = i + 1
 		print i
 		if i >= 10
