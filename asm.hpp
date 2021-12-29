@@ -228,8 +228,8 @@ struct ASM {
 
 
 			// memory
-			else if (cmd[0] == "malloc")         r_malloc( pop() );
-			else if (cmd[0] == "free")           r_free( pop() );
+			else if (cmd[0] == "malloc")         t = r_malloc(pop()),  push(t);
+			else if (cmd[0] == "free")           r_free(pop());
 
 			// else if (cmd[0] == "get.i")       var(cmd[1]) =  mem( var(cmd[2]), stoi(cmd[3]) );
 			// else if (cmd[0] == "get.v")       var(cmd[1]) =  mem( var(cmd[2]), var(cmd[3]) );

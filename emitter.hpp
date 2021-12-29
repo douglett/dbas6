@@ -11,27 +11,39 @@ using namespace std;
 
 struct Emitter {
 	const string COMMENT_SEP = "\t ; ";
-	vector<string> outp;
+	vector<string> output, subsection;
 	int flag_lastret = 0;  // emit flags
 	
 
 	void emit(const vector<string>& vs, const string& c="") {
 		flag_lastret = (vs.size() && vs.at(0) == "ret");
-		outp.push_back( "\t" + join(vs) + (c.length() ? COMMENT_SEP + c : "") );
+		output.push_back( "\t" + join(vs) + (c.length() ? COMMENT_SEP + c : "") );
+	}
+	void emitsub(const vector<string>& vs, const string& c="") {
+		// emit-subsection (is there a better name for this?)
+		flag_lastret = (vs.size() && vs.at(0) == "ret") * 2;
+		subsection.push_back( "\t" + join(vs) + (c.length() ? COMMENT_SEP + c : "") );
+	}
+	void joinsub() {
+		output.insert( output.end(), subsection.begin(), subsection.end() );
+		subsection = {};
 	}
 	void label(const string& s) {
-		outp.push_back( s + ":" );
+		output.push_back( s + ":" );
 	}
 	void comment(const string& c) {
-		outp.push_back( "\t; " + c );
+		output.push_back( "\t; " + c );
+	}
+	void topcomment(const string& c) {
+		output.push_back( ";;; " + c );
 	}
 	void header() {
-		comment("");
+		topcomment("");
 		time_t now = time(NULL);
 		string timestr = ctime(&now);
 		timestr.pop_back();
-		comment("compiled on:  " + timestr);
-		comment("");
+		topcomment("compiled on:  " + timestr);
+		topcomment("");
 	}
 
 	// void           lstack_push(const string& label) { while_labels.push_back(label); }
@@ -46,7 +58,7 @@ struct Emitter {
 		fstream fs(fname, ios::out);
 		if (!fs.is_open())
 			return fprintf(stderr, "error opening file: %s\n", fname.c_str()), 1;
-		for (const auto& ln : outp)
+		for (const auto& ln : output)
 			fs << ln << endl;
 		return 0;
 	}

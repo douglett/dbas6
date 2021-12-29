@@ -36,6 +36,7 @@ struct Parser : InputFile {
 	
 	// --- Emitter shortcuts ---
 	void emit(const vector<string>& vs, const string& c="") { em.emit(vs, c); }
+	void emitsub(const vector<string>& vs, const string& c="") { em.emitsub(vs, c); }
 	void emlabel(const string& s) { em.label(s); }
 	void dsym() { em.comment( "DSYM " + to_string(lno) + "   " + peekline() ); };
 
@@ -49,8 +50,11 @@ struct Parser : InputFile {
 		flag_while = flag_ctrlcount = 0;
 		em.header();
 		// p_section("type_defs");
+		em.topcomment("<<< SETUP GOBAL >>>");
 		p_section("dim_global");
 		emit({ "call", "main" });
+		em.topcomment("<<< TEARDOWN GOBAL >>>");
+		em.joinsub();
 		emit({ "halt" });
 		// prog.push(setup);
 		// prog.push(teardown);
@@ -121,7 +125,8 @@ struct Parser : InputFile {
 			}
 			// string init
 			else if (type == "string") {
-				emit({ "i", "0" }), emit({ "malloc" }), emit({ "set", name });
+				emit({ "i", "0" }), emit({ "malloc" }), emit({ (isglobal ? "set_global" : "set"), name });
+				emitsub({ (isglobal ? "get_global" : "get"), name }), emitsub({ "free" });
 			}
 			// array object assignment
 			// else if (is_arraytype(type)) {
