@@ -149,13 +149,13 @@ struct ASM {
 
 
 	// --- heap memory ---
-	// int32_t r_malloc(int32_t size) {
-	// 	heap[++heap_top] = vector<int32_t>(size, 0);
-	// 	return heap_top;
-	// }
-	// void r_free(int32_t src) {
-	// 	heap.erase(src);
-	// }
+	int32_t r_malloc(int32_t size) {
+		heap[++heap_top] = vector<int32_t>(size, 0);
+		return heap_top;
+	}
+	void r_free(int32_t src) {
+		heap.erase(src);
+	}
 	// void r_memcopy(int32_t dest, int32_t src) {
 	// 	desc(dest) = desc(src);
 	// }
@@ -227,10 +227,10 @@ struct ASM {
 			else if (cmd[0] == "println")        printf("%d\n", pop() );
 
 
-			// // memory
-			// else if (cmd[0] == "malloc.i")    t = r_malloc( stoi(cmd[2]) ),  var(cmd[1]) = t;
-			// else if (cmd[0] == "malloc.v")    t = r_malloc( var(cmd[2]) ),   var(cmd[1]) = t;
-			// else if (cmd[0] == "free")        r_free( var(cmd[1]) );
+			// memory
+			else if (cmd[0] == "malloc")         r_malloc( pop() );
+			else if (cmd[0] == "free")           r_free( pop() );
+
 			// else if (cmd[0] == "get.i")       var(cmd[1]) =  mem( var(cmd[2]), stoi(cmd[3]) );
 			// else if (cmd[0] == "get.v")       var(cmd[1]) =  mem( var(cmd[2]), var(cmd[3]) );
 			// else if (cmd[0] == "put.ii")      mem( var(cmd[1]), stoi(cmd[2]) ) =  stoi(cmd[3]);

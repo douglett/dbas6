@@ -4,6 +4,7 @@
 #pragma once
 #include "helpers.hpp"
 #include "inputfile.hpp"
+#include "emitter.hpp"
 #include <map>
 #include <ctime>
 using namespace std;
@@ -23,56 +24,30 @@ const vector<string> BASIC_KEYWORDS = {
 
 
 struct Parser : InputFile {
-	vector<string> prog2;
-	// vector<string> setup2, teardown2;
 	map<string, Prog::Type> types;
 	map<string, Prog::Dim>  globals;
 	map<string, Prog::Func> functions;
+	Emitter em;
 	string cfuncname, ctypename;
-	int flag_while = 0, flag_lastret = 0, flag_ctrlcount = 0;  // parse flags
+	vector<string> labelstack;
+	int flag_while = 0, flag_ctrlcount = 0;  // parse flags
 
 
 	
-	// --- Emit asm ---
-	
-	const string COMMENT_SEP = "\t ; ";
-	vector<string> while_labels;  // emit state
-	
-	void emit(const vector<string>& vs, const string& c="") {
-		flag_lastret = (vs.size() && vs.at(0) == "ret");
-		prog2.push_back( "\t" + join(vs) + (c.length() ? COMMENT_SEP + c : "") );
-	}
-	// void emit_at(int32_t pos, const vector<string>& vs, const string& c="") {
-	// 	prog2.at(pos) = "\t" + join(vs) + (c.length() ? COMMENT_SEP + c : "");
-	// }
-	void emitl(const string& s) {
-		prog2.push_back( s + ":" );
-	}
-	void emitc(const string& c) {
-		prog2.push_back( "\t; " + c );
-	}
-	void dsym() {
-		emitc("DSYM " + to_string(lno) + "   " + peekline());
-	}
-	void emit_header() {
-		emitc("");
-		time_t now = time(NULL);
-		string timestr = ctime(&now);
-		timestr.pop_back();
-		emitc("compiled on:  " + timestr);
-		emitc("");
-	}
+	// --- Emitter shortcuts ---
+	void emit(const vector<string>& vs, const string& c="") { em.emit(vs, c); }
+	void emlabel(const string& s) { em.label(s); }
+	void dsym() { em.comment( "DSYM " + to_string(lno) + "   " + peekline() ); };
 
 
 
 	// --- Program structure parsing ---
 
 	void p_program() {
-		prog2     = {};
-		flag_while = flag_lastret = flag_ctrlcount = 0;
 		cfuncname = ctypename = "";
-		while_labels = {};
-		emit_header();
+		labelstack = {};
+		flag_while = flag_ctrlcount = 0;
+		em.header();
 		// p_section("type_defs");
 		p_section("dim_global");
 		emit({ "call", "main" });
@@ -84,7 +59,7 @@ struct Parser : InputFile {
 	}
 
 	void p_section(const string& section) {
-		emitl( "$" + section );
+		emlabel( "$" + section );
 		while (!eof())
 			if      (expect("endl"))  nextline();
 			// else if (section == "type_defs"      && peek("'type"))      p_type(l);
@@ -138,17 +113,18 @@ struct Parser : InputFile {
 			else  functions.at(cfuncname).locals[name] = { name, type };
 			emit({ (isglobal ? "let_global" : "let"), name }, type);
 			// -- initialisers (TODO: bit messy)
+			// int init
 			if (type == "int") {
-				// int initialisation
-				if (expect("'=")) {
-					// auto& l = setup.pushlist();
-					// l.pushtokens({ "set_"+loc, name, type });
-					p_intexpr();
+				if (expect("'="))
+					p_intexpr(),
 					emit({ (isglobal ? "set_global" : "set"), name });
-				}
 			}
+			// string init
+			else if (type == "string") {
+				emit({ "i", "0" }), emit({ "malloc" }), emit({ "set", name });
+			}
+			// array object assignment
 			// else if (is_arraytype(type)) {
-			// 	// array object assignment
 			// 	auto& ma = setup.pushlist();
 			// 	auto& fr = teardown.pushlist();
 			// 	ma.pushtokens({ "arrmalloc", loc, name, type }); //  ma.push(tmp.back()),
@@ -182,7 +158,7 @@ struct Parser : InputFile {
 		namecollision(presults.at(0));
 			cfuncname            = presults.at(0);
 			functions[cfuncname] = { cfuncname };
-			emitl(cfuncname);
+			emlabel(cfuncname);
 			dsym();
 		// set up structure
 		// setup2 = teardown2 = {};
@@ -217,7 +193,7 @@ struct Parser : InputFile {
 		// emit teardown here
 		// end function
 		require("'end 'function endl"), nextline();
-		if (!flag_lastret) {
+		if (!em.flag_lastret) {
 			emit({ "i", "0" }, "default return value");
 			emit({ "ret" });
 		}
@@ -335,7 +311,7 @@ struct Parser : InputFile {
 			if (break_level < 1 || break_level > flag_while)  error(ERR_BREAK_LEVEL_BAD);
 		}
 		require("endl"), nextline();
-		emit({ "jump", while_labels.at(flag_while - break_level) + "end" });
+		emit({ "jump", labelstack.at(flag_while - break_level) + "end" });
 	}
 
 	void p_continue() {
@@ -348,14 +324,14 @@ struct Parser : InputFile {
 			if (cont_level < 1 || cont_level > flag_while)  error(ERR_CONTINUE_LEVEL_BAD);
 		}
 		require("endl"), nextline();
-		emit({ "jump", while_labels.at(flag_while - cont_level) + "start" });
+		emit({ "jump", labelstack.at(flag_while - cont_level) + "start" });
 	}
 
 	void p_if() {
 		require("'if");
 		int cond = 0;
 		string label = "$if_" + to_string(++flag_ctrlcount) + "_";
-		emitl(label + "start");
+		emlabel(label + "start");
 		dsym();
 		// first comparison
 		p_intexpr(), require("endl"), nextline();
@@ -364,7 +340,7 @@ struct Parser : InputFile {
 		emit({ "jump", label + "end" });
 		// else-if statements
 		while (expect("'else 'if")) {
-			emitl(label + to_string(++cond));
+			emlabel(label + to_string(++cond));
 			dsym();
 			p_intexpr(), require("endl"), nextline();
 			emit({ "jumpifn", label+to_string(cond+1) }, "condition "+to_string(cond));
@@ -373,7 +349,7 @@ struct Parser : InputFile {
 			emit({ "jump", label + "end" });
 		}
 		// if all conditions fail, we end up here
-		emitl(label + to_string(++cond));
+		emlabel(label + to_string(++cond));
 		// last else, guaranteed execution
 		if (expect("'else endl")) {
 			dsym();
@@ -382,15 +358,15 @@ struct Parser : InputFile {
 		}
 		// block end
 		require("'end 'if endl"), nextline();
-		emitl(label + "end");
+		emlabel(label + "end");
 	}
 
 	void p_while() {
 		require("'while");
 		flag_while++;
 		string label = "$while_" + to_string(++flag_ctrlcount) + "_";
-		while_labels.push_back(label);
-		emitl(label + "start");
+		labelstack.push_back(label);
+		emlabel(label + "start");
 		dsym();
 		// comparison
 		p_intexpr(), require("endl"), nextline();
@@ -400,8 +376,8 @@ struct Parser : InputFile {
 		// block end
 		require("'end 'while endl"), nextline();
 		emit({ "jump", label + "start" });  // loop
-		emitl(label + "end");
-		while_labels.pop_back();
+		emlabel(label + "end");
+		labelstack.pop_back();
 		flag_while--;
 	}
 
@@ -409,13 +385,13 @@ struct Parser : InputFile {
 		require("'for");
 		flag_while++;  // lets say this is a while loop of sorts
 		string name, label = "$for_" + to_string(++flag_ctrlcount) + "_";
-		while_labels.push_back(label);
-		emitl(label + "pre_start");
+		labelstack.push_back(label);
+		emlabel(label + "pre_start");
 		dsym();
 		// from-value
 		require("@identifier '="), name = presults.at(0), p_intexpr();
 		emit({ "set", name }, "initialize");
-		emitl(label + "start");
+		emlabel(label + "start");
 		// to-value and bounds check
 		emit({ "get", name });
 		require("'to"), p_intexpr();
@@ -429,8 +405,8 @@ struct Parser : InputFile {
 		require("'end 'for endl"), nextline();
 		emit({ "get", name }), emit({ "i", "1" }), emit({ "add" }), emit({ "set", name });  // iterate
 		emit({ "jump", label + "start" });  // loop
-		emitl(label + "end");
-		while_labels.pop_back();
+		emlabel(label + "end");
+		labelstack.pop_back();
 		flag_while--;
 	}
 
