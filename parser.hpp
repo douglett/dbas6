@@ -172,8 +172,6 @@ struct Parser : InputFile {
 			functions[cfuncname] = { cfuncname };
 			emlabel(cfuncname);
 			dsym();
-		// set up structure
-		// setup2 = teardown2 = {};
 		// parse arguments
 		string name, type;
 		int argc = 0;
@@ -200,15 +198,15 @@ struct Parser : InputFile {
 			else if (peek("'dim"))    p_dim();
 			else    break;
 		// block
-		// emit setup here
 		p_block();
-		// emit teardown here
 		// end function
 		require("'end 'function endl"), nextline();
-		if (!em.flag_lastret) {
-			emit({ "i", "0" }, "default return value");
-			emit({ "ret" });
-		}
+		// function teardown
+		emlabel(cfuncname + "_teardown");
+		em.comment("function teardown");
+		em.joinsub();
+		emit({ "get", "$rval" });
+		emit({ "ret" });
 		cfuncname = "";
 	}
 
@@ -305,10 +303,10 @@ struct Parser : InputFile {
 	void p_return() {
 		dsym();
 		require("'return");
-		if    (expect("endl"))  emit({ "i", "0" }, "default return command");
+		if    (expect("endl"))  emit({ "i", "0" }, "default return value");
 		else  p_intexpr();
 		require("endl"), nextline();
-		emit({ "ret" });
+		emit({ "set", "$rval" }),  emit({ "jump", cfuncname + "_teardown" });
 	}
 
 	void p_break() {
@@ -452,20 +450,7 @@ struct Parser : InputFile {
 		auto t = p_expr_add();
 		if (expect("@'= @'=") || expect("@'! @'=") || expect("@'< @'=") || expect("@'> @'=") || expect("@'<") || expect("@'>")) {
 			string op = presults.at(0) + (presults.size() > 1 ? presults.at(1) : ""),  opcode;
-
-			// if (t == "string")  t = "string$";  // normalise string
-			// if      (t == "int")  l.pushtoken("comp"+op);
-			// else if (t == "string$" && op == "==")  l.pushtoken("strcmp");
-			// else if (t == "string$" && op == "!=")  l.pushtoken("strncmp");
-			// else    error();
-			// l.push(lhs);  // reappend lhs
-			// auto u = p_expr_add(l);  // parse rhs
-			// if (u == "string")  u = "string$";  // normalise string
-			// if (t != u)  error();
-			// return "int";
-
-			printf("here: %s\n", t.c_str() );
-
+			// int comparison
 			if (t == "int") {
 				if (op == "==")  opcode = "eq";
 				if (op == "!=")  opcode = "neq";
@@ -477,21 +462,17 @@ struct Parser : InputFile {
 				if (u != "int")  error(ERR_EXPECTED_INT);
 				emit({ opcode });
 			}
-
-			else if (t == "string") {
-				if      (op == "==")  opcode = "memeq";
-				else if (op == "!=")  opcode = "memneq";
-				else    error(ERR_STRING_OPERATOR_BAD);
-				auto u = p_expr_add();
-				if (u != "string")  error(ERR_EXPECTED_STRING);
-				emit({ opcode });
-			}
-			else {
-				error(ERR_OBJECT_OPERATOR_BAD);
-			}
-
-			printf("here2\n");
-			return "int";
+			// string comparison
+			// else if (t == "string") {
+			// 	if      (op == "==")  opcode = "memeq";
+			// 	else if (op == "!=")  opcode = "memneq";
+			// 	else    error(ERR_STRING_OPERATOR_BAD);
+			// 	auto u = p_expr_add();
+			// 	if (u != "string")  error(ERR_EXPECTED_STRING);
+			// 	emit({ opcode });
+			// }
+			else  error(ERR_OBJECT_OPERATOR_BAD);  // unknown type
+			return "int";  // ok
 		}
 		return t;
 	}

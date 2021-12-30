@@ -12,16 +12,16 @@ using namespace std;
 struct Emitter {
 	const string COMMENT_SEP = "\t ; ";
 	vector<string> output, subsection;
-	int flag_lastret = 0;  // emit flags
+	// int flag_lastret = 0;  // emit flags
 	
 
 	void emit(const vector<string>& vs, const string& c="") {
-		flag_lastret = (vs.size() && vs.at(0) == "ret");
+		// flag_lastret = (vs.size() && vs.at(0) == "ret");
 		output.push_back( "\t" + join(vs) + (c.length() ? COMMENT_SEP + c : "") );
 	}
 	void emitsub(const vector<string>& vs, const string& c="") {
 		// emit-subsection (is there a better name for this?)
-		flag_lastret = (vs.size() && vs.at(0) == "ret") * 2;
+		// flag_lastret = (vs.size() && vs.at(0) == "ret") * 2;
 		subsection.push_back( "\t" + join(vs) + (c.length() ? COMMENT_SEP + c : "") );
 	}
 	void joinsub() {

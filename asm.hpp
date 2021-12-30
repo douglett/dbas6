@@ -101,7 +101,8 @@ struct ASM {
 	}
 	void call(string label) {
 		fstack.push_back({
-			{ "$ret", pc }
+			{ "$ret",  pc },
+			{ "$rval", 0 },
 		});
 		pc = findlabel(label);
 	}
