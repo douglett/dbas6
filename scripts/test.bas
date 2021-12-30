@@ -5,7 +5,7 @@
 # end type
 
 dim a = 1 * 2 * 4 + 4 * 3
-dim string s
+dim string s = "poop"
 
 function square(int a)
 	return a * a

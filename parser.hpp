@@ -101,6 +101,7 @@ struct Parser : InputFile {
 	void p_dim() {
 		dsym();
 		const int isglobal = cfuncname.length() == 0;
+		const string get_cmd = (isglobal ? "get_global" : "get"), set_cmd = (isglobal ? "set_global" : "set");
 		string name, type;
 		if      (expect("'dim @identifier @identifier"))         name = presults.at(1), type = presults.at(0);
 		else if (expect("'dim @identifier '[ '] @identifier"))   name = presults.at(1), type = presults.at(0) + "[]";
@@ -121,12 +122,18 @@ struct Parser : InputFile {
 			if (type == "int") {
 				if (expect("'="))
 					p_intexpr(),
-					emit({ (isglobal ? "set_global" : "set"), name });
+					emit({ set_cmd, name });
 			}
 			// string init
 			else if (type == "string") {
-				emit({ "i", "0" }), emit({ "malloc" }), emit({ (isglobal ? "set_global" : "set"), name });
-				emitsub({ (isglobal ? "get_global" : "get"), name }), emitsub({ "free" });
+				emit({ "i", "0" }), emit({ "malloc" }), emit({ set_cmd, name });  // create string
+				emitsub({ get_cmd, name }), emitsub({ "free" });  // cleanup string
+				if (expect("'=")) {
+					require("@literal");
+					emit({ get_cmd, name });
+					emit({ "strcopy", presults.at(0) });
+					emit({ "drop" });
+				}
 			}
 			// array object assignment
 			// else if (is_arraytype(type)) {
@@ -265,14 +272,12 @@ struct Parser : InputFile {
 			else if (expect("',"))        emit({ "print_lit", "\" \"" });
 			else if (expect("';"))        emit({ "print_lit", "\"\t\"" });
 			else if (expect("@literal"))  emit({ "print_lit", presults.at(0) });
-			else    p_intexpr(), emit({ "print" });
-			// else {
-			// 	auto& ex = l.pushcmdlist("int_expr");
-			// 	auto  t  = p_anyexpr(ex);
-			// 	if      (t == "int") ;
-			// 	else if (t == "string" || t == "string$")  ex.at(0).tok = "string_expr";
-			// 	else    error2("p_print");
-			// }
+			else {
+				auto t = p_anyexpr();
+				if      (t == "int")     emit({ "print" });
+				else if (t == "string")  emit({ "print_str" });
+				else    error(ERR_UNEXPECTED_TYPE);
+			}
 		emit({ "print_lit", "\"\\n\"" });
 		require("endl"), nextline();
 	}
@@ -419,9 +424,9 @@ struct Parser : InputFile {
 
 	// --- Expressions --- 
 
-	void   p_intexpr() { p_expr_or() == "int" || error(ERR_EXPECTED_INT); }
-	// void   p_strexpr(Node& p) { auto t = p_expr_or(p);  t == "string" || t == "string$" || error2("p_strexpr"); }
-	// string p_anyexpr(Node& p) { return p_expr_or(p); }
+	void   p_intexpr() { p_expr_or() == "int"    || error(ERR_EXPECTED_INT); }
+	// void   p_strexpr() { p_expr_or() == "string" || error(ERR_EXPECTED_STRING); }
+	string p_anyexpr() { return p_expr_or(); }
 
 	string p_expr_or() {
 		auto t = p_expr_and();
@@ -446,7 +451,7 @@ struct Parser : InputFile {
 	string p_expr_comp() {
 		auto t = p_expr_add();
 		if (expect("@'= @'=") || expect("@'! @'=") || expect("@'< @'=") || expect("@'> @'=") || expect("@'<") || expect("@'>")) {
-			string op = presults.at(0) + (presults.size() > 1 ? presults.at(1) : "");
+			string op = presults.at(0) + (presults.size() > 1 ? presults.at(1) : ""),  opcode;
 
 			// if (t == "string")  t = "string$";  // normalise string
 			// if      (t == "int")  l.pushtoken("comp"+op);
@@ -459,17 +464,34 @@ struct Parser : InputFile {
 			// if (t != u)  error();
 			// return "int";
 
-			string opcode;
-			if (op == "==")  opcode = "eq";
-			if (op == "!=")  opcode = "neq";
-			if (op == "<" )  opcode = "lt";
-			if (op == ">" )  opcode = "gt";
-			if (op == "<=")  opcode = "lte";
-			if (op == ">=")  opcode = "gte";
-			
-			auto u = p_expr_add();
-			if (t != "int" || t != u)  error(ERR_EXPECTED_INT);
-			emit({ opcode });
+			printf("here: %s\n", t.c_str() );
+
+			if (t == "int") {
+				if (op == "==")  opcode = "eq";
+				if (op == "!=")  opcode = "neq";
+				if (op == "<" )  opcode = "lt";
+				if (op == ">" )  opcode = "gt";
+				if (op == "<=")  opcode = "lte";
+				if (op == ">=")  opcode = "gte";
+				auto u = p_expr_add();
+				if (u != "int")  error(ERR_EXPECTED_INT);
+				emit({ opcode });
+			}
+
+			else if (t == "string") {
+				if      (op == "==")  opcode = "memeq";
+				else if (op == "!=")  opcode = "memneq";
+				else    error(ERR_STRING_OPERATOR_BAD);
+				auto u = p_expr_add();
+				if (u != "string")  error(ERR_EXPECTED_STRING);
+				emit({ opcode });
+			}
+			else {
+				error(ERR_OBJECT_OPERATOR_BAD);
+			}
+
+			printf("here2\n");
+			return "int";
 		}
 		return t;
 	}
