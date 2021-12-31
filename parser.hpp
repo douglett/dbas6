@@ -131,7 +131,7 @@ struct Parser : InputFile {
 				if (expect("'=")) {
 					require("@literal");
 					emit({ get_cmd, name });
-					emit({ "strcopy", presults.at(0) });
+					emit({ "memcat_lit", presults.at(0) });
 					emit({ "drop" });
 				}
 			}
@@ -449,7 +449,7 @@ struct Parser : InputFile {
 	string p_expr_comp() {
 		auto t = p_expr_add();
 		if (expect("@'= @'=") || expect("@'! @'=") || expect("@'< @'=") || expect("@'> @'=") || expect("@'<") || expect("@'>")) {
-			string op = presults.at(0) + (presults.size() > 1 ? presults.at(1) : ""),  opcode;
+			string opcode, op = presults.at(0) + (presults.size() > 1 ? presults.at(1) : "");
 			// int comparison
 			if (t == "int") {
 				if (op == "==")  opcode = "eq";
@@ -464,8 +464,8 @@ struct Parser : InputFile {
 			}
 			// string comparison
 			// else if (t == "string") {
-			// 	if      (op == "==")  opcode = "memeq";
-			// 	else if (op == "!=")  opcode = "memneq";
+			// 	if      (op == "==")  opcode = "streq";
+			// 	else if (op == "!=")  opcode = "strneq";
 			// 	else    error(ERR_STRING_OPERATOR_BAD);
 			// 	auto u = p_expr_add();
 			// 	if (u != "string")  error(ERR_EXPECTED_STRING);
@@ -491,10 +491,10 @@ struct Parser : InputFile {
 			// if (t != u)  error();
 			// if (t == "int")  emit({ (sign == "+" ? "add.v" : "sub.v"), "$top", "$pop" });
 			
-			string opcode = presults.at(0) == "+" ? "add" : "sub";
+			string op = presults.at(0) == "+" ? "add" : "sub";
 			auto u = p_expr_mul();
 			if (t != "int" || t != u)  error(ERR_EXPECTED_INT);  // ERR_UNMATCHED_TYPES
-			emit({ opcode });
+			emit({ op });
 		}
 		return t;
 	}
@@ -516,7 +516,7 @@ struct Parser : InputFile {
 		else if (expect("@integer"))      return emit({ "i", presults.at(0) }), "int";
 		else if (peek("identifier '("))   return p_expr_call();
 		else if (peek("identifier"))      return p_varpath();
-		// else if (expect("@literal"))      return p.pushliteral(presults.at(0)),  "string$";
+		// else if (expect("@literal"))      return emit({ "malloc" }),  emit({ "strcopy", presults.at(0) }),  "string";  // string$ ?
 		else if (eol())                   error(ERR_UNEXPECTED_EOL);
 		return error(ERR_UNKNOWN_ATOM), "nil";
 	}
@@ -527,6 +527,7 @@ struct Parser : InputFile {
 		// 	if       (peek("'."))  lhs = p.pop(),  type = p_varpath_prop(type, p),    p.back().push(lhs);
 		// 	else if  (peek("'["))  lhs = p.pop(),  type = p_varpath_arrpos(type, p),  p.back().push(lhs);
 		// 	else     break;
+		// if (type == "string")  emit({ "malloc" }),  emit({ "strcopy" })
 		return type;
 	}
 	

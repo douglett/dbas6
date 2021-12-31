@@ -160,10 +160,15 @@ struct ASM {
 	void r_memcopy(int32_t dest, int32_t src) {
 		desc(dest) = desc(src);
 	}
-	void r_strcopy(int32_t dest, const string& src) {
-		desc(dest) = strtoarr(src);
+	void r_memcat(int32_t dest, int32_t src) {
+		auto &dmem = desc(dest), &smem = desc(src);
+		dmem.insert( dmem.begin(), smem.begin(), smem.end() );
 	}
-	int32_t r_memcomp(int32_t dest, int32_t src) {
+	void r_memcat_lit(int32_t dest, const string& src) {
+		auto& mem = desc(dest);
+		mem.insert( mem.begin(), src.begin(), src.end() );
+	}
+	int32_t r_strcomp(int32_t dest, int32_t src) {
 		const auto &a = desc(dest), &b = desc(src);
 		if (a.size() != b.size())  return 0;
 		for (int i = 0; i < a.size(); i++)
@@ -235,7 +240,7 @@ struct ASM {
 			else if (cmd[0] == "println")        printf("%d\n", pop() );
 
 			// memory
-			else if (cmd[0] == "malloc")         t = r_malloc(pop()),  push(t);
+			else if (cmd[0] == "malloc")         push( r_malloc(pop()) );
 			else if (cmd[0] == "free")           r_free(pop());
 
 			// else if (cmd[0] == "get.i")       var(cmd[1]) =  mem( var(cmd[2]), stoi(cmd[3]) );
@@ -246,11 +251,13 @@ struct ASM {
 			// else if (cmd[0] == "put.vv")      mem( var(cmd[1]), var(cmd[2])  ) =  var(cmd[3]);
 			
 			// arrays
+			else if (cmd[0] == "len")            push( desc(pop()).size() );
 			// else if (cmd[0] == "memcopy")        t = pop(),  r_memcopy( peek(), t );
 			// else if (cmd[0] == "memmove")        t = pop(),  r_memcopy( peek(), t ),  r_free(t);
-			else if (cmd[0] == "strcopy")        r_strcopy( peek(), strescape(cmd[1]) );
-			else if (cmd[0] == "memeq")          t = pop(),  t =  r_memcomp(pop(), t),  push(t);
-			else if (cmd[0] == "memneq")         t = pop(),  t = !r_memcomp(pop(), t),  push(t);
+			else if (cmd[0] == "memcat")         t = pop(),  r_memcat( peek(), t ),  r_free(t);
+			else if (cmd[0] == "memcat_lit")     r_memcat_lit( peek(), strescape(cmd[1]) );
+			else if (cmd[0] == "streq")          t = pop(),  push(  r_strcomp(pop(), t) );
+			else if (cmd[0] == "strneq")         t = pop(),  push( !r_strcomp(pop(), t) );
 			
 			// else if (cmd[0] == "len")         t = desc( var(cmd[2]) ).size(),  var(cmd[1]) = t;
 			// else if (cmd[0] == "copy.v")      t = var(cmd[2]),        r_memcopy( var(cmd[1]), t );
