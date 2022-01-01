@@ -170,10 +170,10 @@ struct ASM {
 		mem.insert( mem.begin(), src.begin(), src.end() );
 	}
 	int32_t r_strcomp(int32_t dest, int32_t src) {
-		const auto &a = desc(dest), &b = desc(src);
+		const auto  &a = desc(dest),  &b = desc(src);
 		if (a.size() != b.size())  return 0;
 		for (int i = 0; i < a.size(); i++)
-			if (a[i] != b[1])  return 0;
+			if (a[i] != b[i])  return 0;
 		return 1;
 	}
 	// void r_concat(int32_t dest, int32_t src) {

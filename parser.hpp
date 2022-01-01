@@ -473,7 +473,7 @@ struct Parser : InputFile {
 				else if (op == "!=")  opcode = "strneq";
 				else    error(ERR_STRING_OPERATOR_BAD);
 				auto u = p_expr_add();
-				if (u != "string" || u == "string$")  error(ERR_EXPECTED_STRING);
+				if (u != "string" && u != "string$")  error(ERR_EXPECTED_STRING);
 				emit({ opcode });
 				emit({ "stash" });  // manage strings on stack
 				emit({ u == "string$" ? "free" : "drop" });
@@ -520,12 +520,12 @@ struct Parser : InputFile {
 	}
 	
 	string p_expr_atom() {
-		if      (expect("'true"))         return emit({ "i", "1" }, "true" ),  "int";
-		else if (expect("'false"))        return emit({ "i", "0" }, "false"), "int";
-		else if (expect("@integer"))      return emit({ "i", presults.at(0) }), "int";
+		if      (expect("'true"))         return emit({ "i", "1" }, "true" ),    "int";
+		else if (expect("'false"))        return emit({ "i", "0" }, "false"),    "int";
+		else if (expect("@integer"))      return emit({ "i", presults.at(0) }),  "int";
 		else if (peek("identifier '("))   return p_expr_call();
 		else if (peek("identifier"))      return p_varpath();
-		// else if (expect("@literal"))      return emit({ "malloc" }),  emit({ "strcopy", presults.at(0) }),  "string";  // string$ ?
+		else if (expect("@literal"))      return emit({ "i", "0" }),  emit({ "malloc" }),  emit({ "memcat_lit", presults.at(0) }),  "string$";
 		else if (eol())                   error(ERR_UNEXPECTED_EOL);
 		return error(ERR_UNKNOWN_ATOM), "nil";
 	}
