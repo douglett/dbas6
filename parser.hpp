@@ -125,8 +125,7 @@ struct Parser : InputFile {
 			}
 			// string init
 			else if (type == "string") {
-				emit({ "i", "0" });  // create string
-				emit({ "malloc" });
+				emit({ "malloc0" });  // create string
 				emit({ set_cmd, name });
 				em.emitsub({ get_cmd, name });  // defer string teardown
 				em.emitsub({ "free" });
@@ -454,7 +453,7 @@ struct Parser : InputFile {
 	string p_expr_comp() {
 		auto t = p_expr_add();
 		if (expect("@'= @'=") || expect("@'! @'=") || expect("@'< @'=") || expect("@'> @'=") || expect("@'<") || expect("@'>")) {
-			string opcode, op = presults.at(0) + (presults.size() > 1 ? presults.at(1) : "");
+			string  opcode,  op = (presults.at(0) + (presults.size() > 1 ? presults.at(1) : ""));
 			// int comparison
 			if (t == "int") {
 				if (op == "==")  opcode = "eq";
@@ -464,7 +463,8 @@ struct Parser : InputFile {
 				if (op == "<=")  opcode = "lte";
 				if (op == ">=")  opcode = "gte";
 				auto u = p_expr_add();
-				if (u != "int")  error(ERR_EXPECTED_INT);
+				// if (u != "int")  error(ERR_EXPECTED_INT);
+				if (u != "int")  error(ERR_UNMATCHED_TYPES);
 				emit({ opcode });
 			}
 			// string comparison
@@ -473,14 +473,15 @@ struct Parser : InputFile {
 				else if (op == "!=")  opcode = "strneq";
 				else    error(ERR_STRING_OPERATOR_BAD);
 				auto u = p_expr_add();
-				if (u != "string" && u != "string$")  error(ERR_EXPECTED_STRING);
+				// if (u != "string" && u != "string$")  error(ERR_EXPECTED_STRING);
+				if (u != "string" && u != "string$")  error(ERR_UNMATCHED_TYPES);
 				emit({ opcode });
 				emit({ "stash" });  // manage strings on stack
 				emit({ u == "string$" ? "free" : "drop" });
 				emit({ t == "string$" ? "free" : "drop" });
 				emit({ "unstash" });
 			}
-			else  error(ERR_OBJECT_OPERATOR_BAD);  // unknown type
+			else  error(ERR_OBJECT_OPERATOR_BAD);  // unexpected type for this operator
 			return "int";  // ok
 		}
 		return t;
@@ -489,21 +490,34 @@ struct Parser : InputFile {
 	string p_expr_add() {
 		auto t = p_expr_mul();
 		while (expect("@'+") || expect("@'-")) {
-			// auto sign = presults.at(0);
-			// if (t == "string")  t = "string$";  // normalise string
-			// if      (t == "int")  l.pushtoken(presults.at(0) == "+" ? "add" : "sub");
-			// else if (t == "string$" && presults.at(0) == "+")  l.pushtoken("strcat");
-			// else    error();
-			// l.push(lhs);  // reappend lhs
-			// auto u = p_expr_mul(l);  // parse rhs
-			// if (u == "string")  u = "string$";  // normalise string
-			// if (t != u)  error();
-			// if (t == "int")  emit({ (sign == "+" ? "add.v" : "sub.v"), "$top", "$pop" });
-			
-			string op = presults.at(0) == "+" ? "add" : "sub";
-			auto u = p_expr_mul();
-			if (t != "int" || t != u)  error(ERR_EXPECTED_INT);  // ERR_UNMATCHED_TYPES
-			emit({ op });
+			string  opcode,  op = presults.at(0);
+			// int addition
+			if (t == "int") {
+				opcode = (op == "+" ? "add" : "sub");
+				auto u = p_expr_mul();
+				// if (u != "int")  error(ERR_EXPECTED_INT);
+				if (u != "int")  error(ERR_UNMATCHED_TYPES);
+				emit({ opcode });
+				return "int";  // ok
+			}
+			// string concatenation
+			if (t == "string" || t == "string$") {
+				if (op == "-")  error(ERR_STRING_OPERATOR_BAD);
+				if (t == "string") {
+					emit({ "stash" });
+					emit({ "malloc0" });
+					emit({ "unstash" });
+					emit({ "memcat" });
+					emit({ "drop" });
+				}
+				auto u = p_expr_mul();
+				// if (u != "string" && u != "string$")  error(ERR_EXPECTED_STRING);
+				if (u != "string" && u != "string$")  error(ERR_UNMATCHED_TYPES);
+				emit({ "memcat" });
+				emit({ u == "string$" ? "free" : "drop" });  // manage strings on stack
+				return "string$";  // ok
+			}
+			else  error(ERR_OBJECT_OPERATOR_BAD);  // unexpected type for this operator
 		}
 		return t;
 	}
@@ -525,7 +539,7 @@ struct Parser : InputFile {
 		else if (expect("@integer"))      return emit({ "i", presults.at(0) }),  "int";
 		else if (peek("identifier '("))   return p_expr_call();
 		else if (peek("identifier"))      return p_varpath();
-		else if (expect("@literal"))      return emit({ "i", "0" }),  emit({ "malloc" }),  emit({ "memcat_lit", presults.at(0) }),  "string$";
+		else if (expect("@literal"))      return emit({ "malloc0" }),  emit({ "memcat_lit", presults.at(0) }),  "string$";
 		else if (eol())                   error(ERR_UNEXPECTED_EOL);
 		return error(ERR_UNKNOWN_ATOM), "nil";
 	}
@@ -536,7 +550,6 @@ struct Parser : InputFile {
 		// 	if       (peek("'."))  lhs = p.pop(),  type = p_varpath_prop(type, p),    p.back().push(lhs);
 		// 	else if  (peek("'["))  lhs = p.pop(),  type = p_varpath_arrpos(type, p),  p.back().push(lhs);
 		// 	else     break;
-		// if (type == "string")  emit({ "malloc" }),  emit({ "strcopy" })
 		return type;
 	}
 	

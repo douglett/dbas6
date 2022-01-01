@@ -162,12 +162,12 @@ struct ASM {
 		desc(dest) = desc(src);
 	}
 	void r_memcat(int32_t dest, int32_t src) {
-		auto &dmem = desc(dest), &smem = desc(src);
-		dmem.insert( dmem.begin(), smem.begin(), smem.end() );
+		auto  &dmem = desc(dest),  &smem = desc(src);
+		dmem.insert( dmem.end(), smem.begin(), smem.end() );
 	}
 	void r_memcat_lit(int32_t dest, const string& src) {
 		auto& mem = desc(dest);
-		mem.insert( mem.begin(), src.begin(), src.end() );
+		mem.insert( mem.end(), src.begin(), src.end() );
 	}
 	int32_t r_strcomp(int32_t dest, int32_t src) {
 		const auto  &a = desc(dest),  &b = desc(src);
@@ -234,6 +234,7 @@ struct ASM {
 			else if (cmd[0] == "gte")            t = pop(),  peek() =  peek() >= t;
 			// stack
 			else if (cmd[0] == "drop")           pop();
+			// else if (cmd[0] == "dup")            push(peek());
 			else if (cmd[0] == "stash")          acc = pop();
 			else if (cmd[0] == "unstash")        push(acc);
 			// control
@@ -248,9 +249,11 @@ struct ASM {
 			else if (cmd[0] == "print_lit")      printf("%s", strescape(cmd[1]).c_str() );
 			else if (cmd[0] == "print_str")      printf("%s", arrtostr(pop()).c_str() );
 			else if (cmd[0] == "println")        printf("%d\n", pop() );
+			else if (cmd[0] == "println_str")    printf("%s\n", arrtostr(pop()).c_str() );
 
 			// memory
-			else if (cmd[0] == "malloc")         push( r_malloc(pop()) );
+			// else if (cmd[0] == "malloc")         push( r_malloc(pop()) );
+			else if (cmd[0] == "malloc0")        push( r_malloc(0) );
 			else if (cmd[0] == "free")           r_free(pop());
 
 			// else if (cmd[0] == "get.i")       var(cmd[1]) =  mem( var(cmd[2]), stoi(cmd[3]) );
@@ -264,10 +267,8 @@ struct ASM {
 			else if (cmd[0] == "len")            push( desc(peek()).size() );
 			// else if (cmd[0] == "memcopy")        t = pop(),  r_memcopy( peek(), t );
 			// else if (cmd[0] == "memmove")        t = pop(),  r_memcopy( peek(), t ),  r_free(t);
-			// else if (cmd[0] == "memcat")         t = pop(),  r_memcat( peek(), t ),  r_free(t);
+			else if (cmd[0] == "memcat")         r_memcat( peek(1), peek() );
 			else if (cmd[0] == "memcat_lit")     r_memcat_lit( peek(), strescape(cmd[1]) );
-			// else if (cmd[0] == "streq")          t = pop(),  push(  r_strcomp(pop(), t) );
-			// else if (cmd[0] == "strneq")         t = pop(),  push( !r_strcomp(pop(), t) );
 			else if (cmd[0] == "streq")          push(  r_strcomp(peek(1), peek()) );
 			else if (cmd[0] == "strneq")         push( !r_strcomp(peek(1), peek()) );
 			
