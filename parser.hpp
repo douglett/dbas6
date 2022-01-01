@@ -463,14 +463,18 @@ struct Parser : InputFile {
 				emit({ opcode });
 			}
 			// string comparison
-			// else if (t == "string") {
-			// 	if      (op == "==")  opcode = "streq";
-			// 	else if (op == "!=")  opcode = "strneq";
-			// 	else    error(ERR_STRING_OPERATOR_BAD);
-			// 	auto u = p_expr_add();
-			// 	if (u != "string")  error(ERR_EXPECTED_STRING);
-			// 	emit({ opcode });
-			// }
+			else if (t == "string" || t == "string$") {
+				if      (op == "==")  opcode = "streq";
+				else if (op == "!=")  opcode = "strneq";
+				else    error(ERR_STRING_OPERATOR_BAD);
+				auto u = p_expr_add();
+				if (u != "string" || u == "string$")  error(ERR_EXPECTED_STRING);
+				emit({ opcode });
+				emit({ "stash" });  // manage strings on stack
+				emit({ u == "string$" ? "free" : "drop" });
+				emit({ t == "string$" ? "free" : "drop" });
+				emit({ "unstash" });
+			}
 			else  error(ERR_OBJECT_OPERATOR_BAD);  // unknown type
 			return "int";  // ok
 		}

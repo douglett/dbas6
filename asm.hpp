@@ -21,7 +21,7 @@ struct ASM {
 	static const int32_t STACK_SIZE = 1024;
 	typedef  map<string, int32_t>  StackFrame;
 
-	int32_t pc = 0, heap_top = 0, stack_top = 0;
+	int32_t pc = 0, acc = 0, heap_top = 0, stack_top = 0;
 	StackFrame                     globals;
 	vector<StackFrame>             fstack;
 	// vector<int32_t>                stack = vector<int32_t>(STACK_SIZE, 0);
@@ -143,9 +143,10 @@ struct ASM {
 		if (stack_top <= 0)  throw DBRunError("stack_underflow", pc);
 		return stack[stack_top--];
 	}
-	int32_t& peek() {
-		if (stack_top < 0 || stack_top >= STACK_SIZE)  throw DBRunError("stack_bad_state", pc);
-		return stack[stack_top];
+	int32_t& peek(int32_t offset=0) {
+		int32_t pos = stack_top - offset;
+		if (pos < 0 || pos >= STACK_SIZE)  throw DBRunError("stack_bad_state", pc);
+		return stack[pos];
 	}
 
 
@@ -186,20 +187,26 @@ struct ASM {
 	// }
 
 
+	// --- report & debug ---
+	void showstate() {
+		printf("   heap:    %d \n", heap.size() );
+		printf("   frame:   %d \n", fstack.size() );
+		printf("   stack:   %d \n", stack_top );
+		printf("   > %d \n", stack[stack_top] );
+		
+		// for (int32_t i = 0; i <= stack_top; i++)
+		// 	printf("   > %d \n", stack[i] );
+	}
+
+
 
 	// --- main loop ---
 	void mainloop() {
 		int32_t t = 0;
-		// string s;
-		// pc = 0;
-
+		pc = acc = 0;
+		// 
 		while (pc < prog.size()) {
-			const auto& cmd = prog.at(pc);
-			
-			// printf("%02d    ", pc );
-			// for (auto c : cmd)  printf("%s ", c.c_str() );
-			// printf("\n");
-			
+			const auto& cmd = prog.at(pc);			
 			// meta
 			if      (cmd.size() == 0)            ;  // noop
 			else if (cmd[0].front() == ';')      ;  // comment line
@@ -225,7 +232,10 @@ struct ASM {
 			else if (cmd[0] == "gt")             t = pop(),  peek() =  peek() >  t;
 			else if (cmd[0] == "lte")            t = pop(),  peek() =  peek() <= t;
 			else if (cmd[0] == "gte")            t = pop(),  peek() =  peek() >= t;
+			// stack
 			else if (cmd[0] == "drop")           pop();
+			else if (cmd[0] == "stash")          acc = pop();
+			else if (cmd[0] == "unstash")        push(acc);
 			// control
 			else if (cmd[0] == "jump")           pc = findlabel(cmd[1]);
 			else if (cmd[0] == "jumpif")         pc = pop() ? findlabel(cmd[1]) : pc;
@@ -251,13 +261,15 @@ struct ASM {
 			// else if (cmd[0] == "put.vv")      mem( var(cmd[1]), var(cmd[2])  ) =  var(cmd[3]);
 			
 			// arrays
-			else if (cmd[0] == "len")            push( desc(pop()).size() );
+			else if (cmd[0] == "len")            push( desc(peek()).size() );
 			// else if (cmd[0] == "memcopy")        t = pop(),  r_memcopy( peek(), t );
 			// else if (cmd[0] == "memmove")        t = pop(),  r_memcopy( peek(), t ),  r_free(t);
-			else if (cmd[0] == "memcat")         t = pop(),  r_memcat( peek(), t ),  r_free(t);
+			// else if (cmd[0] == "memcat")         t = pop(),  r_memcat( peek(), t ),  r_free(t);
 			else if (cmd[0] == "memcat_lit")     r_memcat_lit( peek(), strescape(cmd[1]) );
-			else if (cmd[0] == "streq")          t = pop(),  push(  r_strcomp(pop(), t) );
-			else if (cmd[0] == "strneq")         t = pop(),  push( !r_strcomp(pop(), t) );
+			// else if (cmd[0] == "streq")          t = pop(),  push(  r_strcomp(pop(), t) );
+			// else if (cmd[0] == "strneq")         t = pop(),  push( !r_strcomp(pop(), t) );
+			else if (cmd[0] == "streq")          push(  r_strcomp(peek(1), peek()) );
+			else if (cmd[0] == "strneq")         push( !r_strcomp(peek(1), peek()) );
 			
 			// else if (cmd[0] == "len")         t = desc( var(cmd[2]) ).size(),  var(cmd[1]) = t;
 			// else if (cmd[0] == "copy.v")      t = var(cmd[2]),        r_memcopy( var(cmd[1]), t );

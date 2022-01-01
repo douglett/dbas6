@@ -18,4 +18,6 @@ int main() {
 	ASM a;
 	a.load("bin/output.asm");
 	a.mainloop();
+	printf("---\n");
+	a.showstate();
 }
