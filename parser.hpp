@@ -36,7 +36,6 @@ struct Parser : InputFile {
 	
 	// --- Emitter shortcuts ---
 	void emit(const vector<string>& vs, const string& c="") { em.emit(vs, c); }
-	void emitsub(const vector<string>& vs, const string& c="") { em.emitsub(vs, c); }
 	void emlabel(const string& s) { em.label(s); }
 	void dsym() { em.comment( "DSYM " + to_string(lno) + "   " + peekline() ); };
 
@@ -126,8 +125,11 @@ struct Parser : InputFile {
 			}
 			// string init
 			else if (type == "string") {
-				emit({ "i", "0" }), emit({ "malloc" }), emit({ set_cmd, name });  // create string
-				emitsub({ get_cmd, name }), emitsub({ "free" });  // cleanup string
+				emit({ "i", "0" });  // create string
+				emit({ "malloc" });
+				emit({ set_cmd, name });
+				em.emitsub({ get_cmd, name });  // defer string teardown
+				em.emitsub({ "free" });
 				if (expect("'=")) {
 					require("@literal");
 					emit({ get_cmd, name });
@@ -272,8 +274,8 @@ struct Parser : InputFile {
 			else if (expect("@literal"))  emit({ "print_lit", presults.at(0) });
 			else {
 				auto t = p_anyexpr();
-				if      (t == "int")     emit({ "print" });
-				else if (t == "string")  emit({ "print_str" });
+				if      (t == "int")      emit({ "print" });
+				else if (t == "string")   emit({ "print_str" });
 				else    error(ERR_UNEXPECTED_TYPE);
 			}
 		emit({ "print_lit", "\"\\n\"" });
@@ -306,7 +308,8 @@ struct Parser : InputFile {
 		if    (expect("endl"))  emit({ "i", "0" }, "default return value");
 		else  p_intexpr();
 		require("endl"), nextline();
-		emit({ "set", "$rval" }),  emit({ "jump", cfuncname + "_teardown" });
+		emit({ "set", "$rval" });
+		emit({ "jump", cfuncname + "_teardown" });
 	}
 
 	void p_break() {
@@ -353,7 +356,6 @@ struct Parser : InputFile {
 			p_intexpr(), require("endl"), nextline();
 			emit({ "jumpifn", label+to_string(cond+1) }, "condition "+to_string(cond));
 			p_block();
-			// place.push_back( emit_placeholder() );
 			emit({ "jump", label + "end" });
 		}
 		// if all conditions fail, we end up here
@@ -411,7 +413,10 @@ struct Parser : InputFile {
 		p_block();
 		// block end
 		require("'end 'for endl"), nextline();
-		emit({ "get", name }), emit({ "i", "1" }), emit({ "add" }), emit({ "set", name });  // iterate
+		emit({ "get", name });  // iterate
+		emit({ "i", "1" });
+		emit({ "add" });
+		emit({ "set", name });
 		emit({ "jump", label + "start" });  // loop
 		emlabel(label + "end");
 		labelstack.pop_back();
