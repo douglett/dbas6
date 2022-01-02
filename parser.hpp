@@ -11,7 +11,7 @@ using namespace std;
 
 
 struct Prog {
-	struct Dim  { string name, type; int index; };
+	struct Dim  { string name, type;  int isglobal, index; };
 	struct Type { string name; map<string, Dim> members; };
 	struct Func { string name; map<string, Dim> args, locals; };
 };
@@ -113,8 +113,8 @@ struct Parser : InputFile {
 			// -- save dim info
 			require("@identifier"), name = presults.at(0);
 			namecollision(name);
-			if    (!cfuncname.length())  globals[name] = { name, type };
-			else  functions.at(cfuncname).locals[name] = { name, type };
+			if    (isglobal)  globals[name] = { name, type, .isglobal=isglobal };
+			else  functions.at(cfuncname).locals[name] = { name, type, .isglobal=isglobal };
 			emit({ (isglobal ? "let_global" : "let"), name }, type);
 			// -- initialisers (TODO: bit messy)
 			// int init
@@ -182,7 +182,7 @@ struct Parser : InputFile {
 			else if (expect("@identifier @identifier"))         name = presults.at(1), type = presults.at(0);
 			else    break;
 			typecheck(type), namecollision(name);
-				functions.at(cfuncname).args[name] = { name, type, argc };  // save argument
+				functions.at(cfuncname).args[name] = { name, type, .isglobal=0, .index=argc };  // save argument
 				argc++;  // increment args count
 				emit({ "let", name });
 			if (peek("')"))  break;
@@ -232,28 +232,25 @@ struct Parser : InputFile {
 	}
 
 	void p_let() {
-		// require("'let");
-		// auto t = p_varpath_set(p);
-		// require("'=");
-		// if (t == "int") {
-		// 	auto& l = p.back();
-		// 	p_intexpr(l), require("endl"), nextline();
-		// }
-		// else if (t == "string") {
-		// 	auto  lhs = p.pop();
-		// 	auto& l   = p.pushcmdlist("strcpy");
-		// 	l.push(lhs);
-		// 	p_strexpr(l), require("endl"), nextline();
-		// }
-		// else  error();
-
 		dsym();
-		require("'let @identifier '=");
-		auto name = presults.at(0);
-		p_intexpr();
-		if      (cfuncname.length() && functions.at(cfuncname).args.count(name))    emit({ "set", name });
-		else if (cfuncname.length() && functions.at(cfuncname).locals.count(name))  emit({ "set", name });
-		else if (globals.count(name))  emit({ "set_global", name });
+		require("'let");		
+		auto& def = p_varpath_base2();
+		require("'=");
+		// int assign (expression)
+		if (def.type == "int") {
+			p_intexpr();
+			emit({ (def.isglobal ? "set_global" : "set"), def.name });
+		}
+		// string assign (expression)
+		else if (def.type == "string") {
+			emit({ (def.isglobal ? "get_global" : "get"), def.name });
+			auto t = p_strexpr();
+			emit({ "memcopy" });
+			emit({ t == "string$" ? "free" : "drop" });
+			emit({ "drop" });
+		}
+		// object assign (clone)
+		else  error(ERR_UNEXPECTED_TYPE);
 	}
 
 	void p_call() {
@@ -545,35 +542,55 @@ struct Parser : InputFile {
 	}
 
 	string p_varpath() {
-		string type = p_varpath_base();
+		// string type = p_varpath_base();
 		// while (!eof())
 		// 	if       (peek("'."))  lhs = p.pop(),  type = p_varpath_prop(type, p),    p.back().push(lhs);
 		// 	else if  (peek("'["))  lhs = p.pop(),  type = p_varpath_arrpos(type, p),  p.back().push(lhs);
 		// 	else     break;
-		return type;
+		// return type;
+
+		auto& def = p_varpath_base2();
+		emit({ (def.isglobal ? "get_global" : "get"), def.name });
+		return def.type;
 	}
 	
-	string p_varpath_base() {
+	// string p_varpath_base() {
+	// 	require("@identifier");
+	// 	auto name = presults.at(0);
+	// 	// local vars
+	// 	if (cfuncname.length() && functions.at(cfuncname).args.count(name)) {
+	// 		auto& d = functions.at(cfuncname).args.at(name);
+	// 		emit({ "get", name });
+	// 		return d.type;
+	// 	}
+	// 	else if (cfuncname.length() && functions.at(cfuncname).locals.count(name)) {
+	// 		auto& d = functions.at(cfuncname).locals.at(name);
+	// 		emit({ "get", name });
+	// 		return d.type;
+	// 	}
+	// 	// global vars
+	// 	else if (globals.count(name)) {
+	// 		auto&d = globals[name];
+	// 		emit({ "get_global", name });
+	// 		return d.type;
+	// 	}
+	// 	else  return error(ERR_UNDEFINED_VARIABLE), "nil";
+	// }
+
+	const Prog::Dim& p_varpath_base2() {
 		require("@identifier");
 		auto name = presults.at(0);
 		// local vars
-		if (cfuncname.length() && functions.at(cfuncname).args.count(name)) {
-			auto& d = functions.at(cfuncname).args.at(name);
-			emit({ "get", name });
-			return d.type;
-		}
-		else if (cfuncname.length() && functions.at(cfuncname).locals.count(name)) {
-			auto& d = functions.at(cfuncname).locals.at(name);
-			emit({ "get", name });
-			return d.type;
-		}
+		if (cfuncname.length() && functions.at(cfuncname).args.count(name))
+			return functions[cfuncname].args[name];
+		else if (cfuncname.length() && functions.at(cfuncname).locals.count(name))
+			return functions[cfuncname].locals[name];
 		// global vars
-		else if (globals.count(name)) {
-			auto&d = globals[name];
-			emit({ "get_global", name });
-			return d.type;
-		}
-		else  return error(ERR_UNDEFINED_VARIABLE), "nil";
+		else if (globals.count(name))
+			return globals[name];
+		// error
+		error(ERR_UNDEFINED_VARIABLE);
+		throw std::exception();
 	}
 
 	// string p_varpath_prop(const string& type, Node& p) {

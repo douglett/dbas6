@@ -265,7 +265,7 @@ struct ASM {
 			
 			// arrays
 			else if (cmd[0] == "len")            push( desc(peek()).size() );
-			// else if (cmd[0] == "memcopy")        t = pop(),  r_memcopy( peek(), t );
+			else if (cmd[0] == "memcopy")        r_memcopy( peek(1), peek() );
 			// else if (cmd[0] == "memmove")        t = pop(),  r_memcopy( peek(), t ),  r_free(t);
 			else if (cmd[0] == "memcat")         r_memcat( peek(1), peek() );
 			else if (cmd[0] == "memcat_lit")     r_memcat_lit( peek(), strescape(cmd[1]) );

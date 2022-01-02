@@ -9,6 +9,7 @@ function main()
 	# print "[" a "]"; "[" b "]"; "[" c "]"
 
 	let g = 1 + 2 + 3 + 4
+	let hi = "[[" + hi + "]]" 
 	print hi; "g", g
 
 	# if a == a
