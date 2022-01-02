@@ -130,9 +130,10 @@ struct Parser : InputFile {
 				em.emitsub({ get_cmd, name });  // defer string teardown
 				em.emitsub({ "free" });
 				if (expect("'=")) {
-					require("@literal");
 					emit({ get_cmd, name });
-					emit({ "memcat_lit", presults.at(0) });
+					auto t = p_strexpr();
+					emit({ "memcat" });
+					emit({ t == "string$" ? "free" : "drop" });
 					emit({ "drop" });
 				}
 			}
@@ -427,7 +428,7 @@ struct Parser : InputFile {
 	// --- Expressions --- 
 
 	void   p_intexpr() { p_expr_or() == "int"    || error(ERR_EXPECTED_INT); }
-	// void   p_strexpr() { p_expr_or() == "string" || error(ERR_EXPECTED_STRING); }
+	string p_strexpr() { auto t = p_expr_or();  t == "string" || t == "string$" || error(ERR_EXPECTED_STRING);  return t; }
 	string p_anyexpr() { return p_expr_or(); }
 
 	string p_expr_or() {
@@ -498,24 +499,23 @@ struct Parser : InputFile {
 				// if (u != "int")  error(ERR_EXPECTED_INT);
 				if (u != "int")  error(ERR_UNMATCHED_TYPES);
 				emit({ opcode });
-				return "int";  // ok
 			}
 			// string concatenation
-			if (t == "string" || t == "string$") {
+			else if (t == "string" || t == "string$") {
 				if (op == "-")  error(ERR_STRING_OPERATOR_BAD);
 				if (t == "string") {
-					emit({ "stash" });
+					emit({ "stash" });    // convert to string expression (on the stack)
 					emit({ "malloc0" });
 					emit({ "unstash" });
 					emit({ "memcat" });
 					emit({ "drop" });
+					t = "string$";
 				}
 				auto u = p_expr_mul();
 				// if (u != "string" && u != "string$")  error(ERR_EXPECTED_STRING);
 				if (u != "string" && u != "string$")  error(ERR_UNMATCHED_TYPES);
 				emit({ "memcat" });
 				emit({ u == "string$" ? "free" : "drop" });  // manage strings on stack
-				return "string$";  // ok
 			}
 			else  error(ERR_OBJECT_OPERATOR_BAD);  // unexpected type for this operator
 		}

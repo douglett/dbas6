@@ -1,10 +1,15 @@
 dim string a = "hello"
-# dim string b = "world"
+dim string b = "world"
+dim string hi = a + " :: " + b
 
 function main()
+	dim g
 	# dim string c = "inside string"
 	# print "strings:"
 	# print "[" a "]"; "[" b "]"; "[" c "]"
+
+	let g = 1 + 2 + 3 + 4
+	print hi; "g", g
 
 	# if a == a
 	# 	print "a is a"
