@@ -33,7 +33,7 @@ struct Parser : InputFile {
 	int flag_while = 0, flag_ctrlcount = 0;  // parse flags
 
 
-	
+
 	// --- Emitter shortcuts ---
 	void emit(const vector<string>& vs, const string& c="") { em.emit(vs, c); }
 	void emlabel(const string& s) { em.label(s); }
@@ -107,7 +107,7 @@ struct Parser : InputFile {
 		else if (require("'dim @identifier"))                    name = presults.at(0), type = "int";
 		typecheck(type);  // checking
 		pos--;  // put back one token (name)
-		// 
+		//
 		// loop and dim all
 		while (!eof()) {
 			// -- save dim info
@@ -233,7 +233,7 @@ struct Parser : InputFile {
 
 	void p_let() {
 		dsym();
-		require("'let");		
+		require("'let");
 		auto& def = p_varpath_base2();
 		require("'=");
 		// int assign (expression)
@@ -422,7 +422,7 @@ struct Parser : InputFile {
 
 
 
-	// --- Expressions --- 
+	// --- Expressions ---
 
 	void   p_intexpr() { p_expr_or() == "int"    || error(ERR_EXPECTED_INT); }
 	string p_strexpr() { auto t = p_expr_or();  t == "string" || t == "string$" || error(ERR_EXPECTED_STRING);  return t; }
@@ -484,7 +484,7 @@ struct Parser : InputFile {
 		}
 		return t;
 	}
-	
+
 	string p_expr_add() {
 		auto t = p_expr_mul();
 		while (expect("@'+") || expect("@'-")) {
@@ -529,7 +529,7 @@ struct Parser : InputFile {
 		}
 		return t;
 	}
-	
+
 	string p_expr_atom() {
 		if      (expect("'true"))         return emit({ "i", "1" }, "true" ),    "int";
 		else if (expect("'false"))        return emit({ "i", "0" }, "false"),    "int";
@@ -553,7 +553,7 @@ struct Parser : InputFile {
 		emit({ (def.isglobal ? "get_global" : "get"), def.name });
 		return def.type;
 	}
-	
+
 	// string p_varpath_base() {
 	// 	require("@identifier");
 	// 	auto name = presults.at(0);
@@ -602,7 +602,7 @@ struct Parser : InputFile {
 	// 		l.pushtokens({ "get_property", type+"::"+d.name, d.type });
 	// 	return d.type;
 	// }
-	
+
 	// string p_varpath_arrpos(const string& type, Node& p) {
 	// 	if (!is_arraytype(type))  error2("p_varpath_arrpos");
 	// 	require("'[");
@@ -642,11 +642,13 @@ struct Parser : InputFile {
 		require("@identifier '(");
 		auto fname = presults.at(0);
 		if (!functions.count(fname))  error(ERR_UNDEFINED_FUNCTION);
-		int argc = 0;
+		int argc = 0;  //, strexprc = 0;
 		while (!eol() && !peek("')")) {
-			p_intexpr();
+			auto t = p_anyexpr();
 			argc++;
-			if (argat(fname, argc-1).type != "int")  error(ERR_EXPECTED_INT);
+			auto& def = argat(fname, argc-1);
+			// if      (t == "string$" && def.type == "string")  strexprc++;  // special case - string expressions
+			if (def.type != t)  error(ERR_ARGUMENT_TYPE_MISMATCH);    // argument type checking
 			if (!expect("',"))  break;
 		}
 		require("')");
@@ -723,7 +725,7 @@ struct Parser : InputFile {
 		if (!len)  error(ERR_SYNTAX_ERROR);
 		return pos += len, len;
 	}
-	
+
 
 
 	// helpers
