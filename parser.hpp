@@ -644,21 +644,22 @@ struct Parser : InputFile {
 		auto fname = presults.at(0);
 		if (!functions.count(fname))  error(ERR_UNDEFINED_FUNCTION);
 		int argc = 0, strexprc = 0;
-		// create temp string array
-		emit({ "malloc0" }, "create temp string array");
-		emit({ "set", "$tmp" });
+		// create temp string array (TODO: could optimise this)
+		if (argstrcount(fname))
+			emit({ "malloc0" }, "create temp string array"),
+			emit({ "set", "$tmp" });
 		// arguments count
 		while (!eol() && !peek("')")) {
 			auto t = p_anyexpr();
 			argc++;
 			auto& def = argat(fname, argc-1);
 			if (t == "string$" && def.type == "string") {  // special case - string expressions
-				strexprc++;
 				emit({ "cpstash" }, "save temp string");
 				emit({ "get", "$tmp" });
 				emit({ "unstash" });
 				emit({ "mempush" });
 				emit({ "drop" });
+				strexprc++;
 			}
 			else if (def.type != t)
 				error(ERR_ARGUMENT_TYPE_MISMATCH);    // argument type checking
@@ -668,13 +669,14 @@ struct Parser : InputFile {
 		if (argc != functions.at(fname).args.size())  error(ERR_ARGUMENT_COUNT_MISMATCH);
 		// do call
 		emit({ "call", fname });
-		// cleanup 
-		emit({ "get", "$tmp" }, "cleanup temp string array");
-		for (int i = 0; i < strexprc; i++)
-			emit({ "mempop" }),
+		// cleanup
+		if (argstrcount(fname)) {
+			emit({ "get", "$tmp" }, "cleanup temp string array");
+			for (int i = 0; i < strexprc; i++)
+				emit({ "mempop" }),
+				emit({ "free" });
 			emit({ "free" });
-		emit({ "free" });
-		//
+		}
 		return "int";
 	}
 
@@ -778,5 +780,11 @@ struct Parser : InputFile {
 			if (d.second.index == index)  return d.second;
 		error(ERR_ARGUMENT_INDEX_MISSING);
 		throw DBError();
+	}
+	int argstrcount(const string& fname) {
+		int count = 0;
+		for (const auto& d : functions.at(fname).args)
+			if (d.second.type == "string")  count++;
+		return count;
 	}
 };

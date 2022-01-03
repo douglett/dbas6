@@ -244,7 +244,7 @@ struct ASM {
 			else if (cmd[0] == "gte")            t = pop(),  peek() =  peek() >= t;
 			// stack
 			else if (cmd[0] == "drop")           pop();
-			// else if (cmd[0] == "dup")            push(peek());
+			else if (cmd[0] == "dup")            t = peek(),  push(t);
 			else if (cmd[0] == "stash")          acc = pop();
 			else if (cmd[0] == "cpstash")        acc = peek();
 			else if (cmd[0] == "unstash")        push(acc);
