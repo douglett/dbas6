@@ -62,7 +62,7 @@ struct Parser : InputFile {
 	}
 
 	void p_section(const string& section) {
-		emlabel( "$" + section );
+		emlabel( "SYSTEM_$" + section );
 		while (!eof())
 			if      (expect("endl"))  nextline();
 			// else if (section == "type_defs"      && peek("'type"))      p_type(l);
@@ -204,7 +204,7 @@ struct Parser : InputFile {
 		// end function
 		require("'end 'function endl"), nextline();
 		// function teardown
-		emlabel(cfuncname + "_teardown");
+		emlabel(cfuncname + "_$teardown");
 		em.comment("function teardown");
 		em.joinsub();
 		emit({ "get", "$rval" });
@@ -234,7 +234,7 @@ struct Parser : InputFile {
 	void p_let() {
 		dsym();
 		require("'let");
-		auto& def = p_varpath_base2();
+		auto& def = p_vp_base();
 		require("'=");
 		// int assign (expression)
 		if (def.type == "int") {
@@ -306,7 +306,7 @@ struct Parser : InputFile {
 		else  p_intexpr();
 		require("endl"), nextline();
 		emit({ "set", "$rval" });
-		emit({ "jump", cfuncname + "_teardown" });
+		emit({ "jump", cfuncname + "_$teardown" });
 	}
 
 	void p_break() {
@@ -549,7 +549,7 @@ struct Parser : InputFile {
 		// 	else     break;
 		// return type;
 
-		auto& def = p_varpath_base2();
+		auto& def = p_vp_base();
 		emit({ (def.isglobal ? "get_global" : "get"), def.name });
 		return def.type;
 	}
@@ -577,7 +577,7 @@ struct Parser : InputFile {
 	// 	else  return error(ERR_UNDEFINED_VARIABLE), "nil";
 	// }
 
-	const Prog::Dim& p_varpath_base2() {
+	const Prog::Dim& p_vp_base() {
 		require("@identifier");
 		auto name = presults.at(0);
 		// local vars
@@ -635,6 +635,7 @@ struct Parser : InputFile {
 		// // else if (fname == "join")   std_join(p);
 		// else    p_expr_calluser(p);
 		// return "int";
+		if (cfuncname.length() == 0)  error(ERR_CALL_FUNCTION_GLOBAL);
 		return p_expr_call_user();
 	}
 
@@ -642,18 +643,38 @@ struct Parser : InputFile {
 		require("@identifier '(");
 		auto fname = presults.at(0);
 		if (!functions.count(fname))  error(ERR_UNDEFINED_FUNCTION);
-		int argc = 0;  //, strexprc = 0;
+		int argc = 0, strexprc = 0;
+		// create temp string array
+		emit({ "malloc0" }, "create temp string array");
+		emit({ "set", "$tmp" });
+		// arguments count
 		while (!eol() && !peek("')")) {
 			auto t = p_anyexpr();
 			argc++;
 			auto& def = argat(fname, argc-1);
-			// if      (t == "string$" && def.type == "string")  strexprc++;  // special case - string expressions
-			if (def.type != t)  error(ERR_ARGUMENT_TYPE_MISMATCH);    // argument type checking
+			if (t == "string$" && def.type == "string") {  // special case - string expressions
+				strexprc++;
+				emit({ "cpstash" }, "save temp string");
+				emit({ "get", "$tmp" });
+				emit({ "unstash" });
+				emit({ "mempush" });
+				emit({ "drop" });
+			}
+			else if (def.type != t)
+				error(ERR_ARGUMENT_TYPE_MISMATCH);    // argument type checking
 			if (!expect("',"))  break;
 		}
 		require("')");
 		if (argc != functions.at(fname).args.size())  error(ERR_ARGUMENT_COUNT_MISMATCH);
+		// do call
 		emit({ "call", fname });
+		// cleanup 
+		emit({ "get", "$tmp" }, "cleanup temp string array");
+		for (int i = 0; i < strexprc; i++)
+			emit({ "mempop" }),
+			emit({ "free" });
+		emit({ "free" });
+		//
 		return "int";
 	}
 
