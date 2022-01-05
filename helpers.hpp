@@ -135,16 +135,16 @@ int is_strliteral(const string& s) {
 int is_arraytype(const string& s) {
 	return s.length() >= 3 && s[s.length()-2] == '[' && s[s.length()-1] == ']';
 }
-int is_reftype(const string& s) {
-	return s.length() >= 2 && s.back() == '&';
-}
-int is_arrreftype(const string& s) {
-	return s.length() >= 2 && s.back() == '@';
-}
+// int is_reftype(const string& s) {
+// 	return s.length() >= 2 && s.back() == '&';
+// }
+// int is_arrreftype(const string& s) {
+// 	return s.length() >= 2 && s.back() == '@';
+// }
 string basetype(const string& s) {
 	if      (is_arraytype(s))   return s.substr(0, s.length()-2);
-	else if (is_reftype(s))     return s.substr(0, s.length()-1);
-	else if (is_arrreftype(s))  return s.substr(0, s.length()-1);
+	// else if (is_reftype(s))     return s.substr(0, s.length()-1);
+	// else if (is_arrreftype(s))  return s.substr(0, s.length()-1);
 	else    return s;
 }
 string clean_strliteral(const string& s) {

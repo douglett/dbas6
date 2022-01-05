@@ -49,14 +49,11 @@ struct Parser : InputFile {
 		flag_while = flag_ctrlcount = 0;
 		em.header();
 		// p_section("type_defs");
-		em.topcomment("<<< SETUP GOBAL >>>");
 		p_section("dim_global");
 		emit({ "call", "main" });
-		em.topcomment("<<< TEARDOWN GOBAL >>>");
+		emlabel( "SYSTEM_$" + string("teardown") );
 		em.joinsub();
 		emit({ "halt" });
-		// prog.push(setup);
-		// prog.push(teardown);
 		p_section("function_defs");
 		if (!eof())  error(ERR_EXPECTED_EOF);
 	}
@@ -124,7 +121,7 @@ struct Parser : InputFile {
 					emit({ set_cmd, name });
 			}
 			// string init
-			else if (type == "string") {
+			else if (type == "string" || type == "int[]") {
 				emit({ "malloc0" });  // create string
 				emit({ set_cmd, name });
 				em.emitsub({ get_cmd, name });  // defer string teardown
@@ -242,7 +239,7 @@ struct Parser : InputFile {
 			emit({ (def.isglobal ? "set_global" : "set"), def.name });
 		}
 		// string assign (expression)
-		else if (def.type == "string") {
+		else if (def.type == "string" || def.type == "int[]") {
 			emit({ (def.isglobal ? "get_global" : "get"), def.name });
 			auto t = p_strexpr();
 			emit({ "memcopy" });
@@ -425,7 +422,7 @@ struct Parser : InputFile {
 	// --- Expressions ---
 
 	void   p_intexpr() { p_expr_or() == "int"    || error(ERR_EXPECTED_INT); }
-	string p_strexpr() { auto t = p_expr_or();  t == "string" || t == "string$" || error(ERR_EXPECTED_STRING);  return t; }
+	string p_strexpr() { auto t = p_expr_or();  t == "string" || t == "string$" || t == "int[]" || error(ERR_EXPECTED_STRING);  return t; }
 	string p_anyexpr() { return p_expr_or(); }
 
 	string p_expr_or() {
@@ -466,13 +463,13 @@ struct Parser : InputFile {
 				emit({ opcode });
 			}
 			// string comparison
-			else if (t == "string" || t == "string$") {
+			else if (t == "string" || t == "string$" || t == "int[]") {
 				if      (op == "==")  opcode = "streq";
 				else if (op == "!=")  opcode = "strneq";
 				else    error(ERR_STRING_OPERATOR_BAD);
 				auto u = p_expr_add();
 				// if (u != "string" && u != "string$")  error(ERR_EXPECTED_STRING);
-				if (u != "string" && u != "string$")  error(ERR_UNMATCHED_TYPES);
+				if (u != "string" && u != "string$" && u != "int[]")  error(ERR_UNMATCHED_TYPES);
 				emit({ opcode });
 				emit({ "stash" });  // manage strings on stack
 				emit({ u == "string$" ? "free" : "drop" });
@@ -498,9 +495,9 @@ struct Parser : InputFile {
 				emit({ opcode });
 			}
 			// string concatenation
-			else if (t == "string" || t == "string$") {
+			else if (t == "string" || t == "string$" || t == "int[]") {
 				if (op == "-")  error(ERR_STRING_OPERATOR_BAD);
-				if (t == "string") {
+				if (t == "string" || t == "int[]") {
 					emit({ "stash" });    // convert to string expression (on the stack)
 					emit({ "malloc0" });
 					emit({ "unstash" });
@@ -510,7 +507,7 @@ struct Parser : InputFile {
 				}
 				auto u = p_expr_mul();
 				// if (u != "string" && u != "string$")  error(ERR_EXPECTED_STRING);
-				if (u != "string" && u != "string$")  error(ERR_UNMATCHED_TYPES);
+				if (u != "string" && u != "string$" && u != "int[]")  error(ERR_UNMATCHED_TYPES);
 				emit({ "memcat" });
 				emit({ u == "string$" ? "free" : "drop" });  // manage strings on stack
 			}
