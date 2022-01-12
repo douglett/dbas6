@@ -1,16 +1,18 @@
 dim string s  = "hello"
-dim int[]  ss
-
-function dup(string dest, string s)
-	let dest = dest + s + s
-end function
-
-function ass(int b)
-end function
+dim string[] sa
 
 function main()
-	let ss = ss
-	call dup(s, "balls")
-	print "result:"; s
-	call ass(1)
+	dim int i
+	push s, 65
+	print "here: [" s "]"
+	pop s
+	# pop s, i
+	print "here2: [" s "], " i
+
+	push sa, s
+
+	# push lines, "fart"
+	# pop lines, s
+	# insert lines, 4, s
+	# erase lines, 4, s
 end function

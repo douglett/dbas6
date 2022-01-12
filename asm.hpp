@@ -97,7 +97,7 @@ struct ASM {
 			if (cmd.size() && cmd[0] == label)
 				return i;
 		}
-		throw DBRunError("missing label", pc);
+		throw DBRunError("missing label: "+label, pc);
 	}
 	void call(string label) {
 		fstack.push_back({
@@ -212,7 +212,7 @@ struct ASM {
 
 	// --- main loop ---
 	void mainloop() {
-		int32_t t = 0;
+		int32_t t = 0, u = 0;
 		pc = acc = 0;
 		// 
 		while (pc < prog.size()) {
@@ -266,6 +266,8 @@ struct ASM {
 			// else if (cmd[0] == "malloc")         push( r_malloc(pop()) );
 			else if (cmd[0] == "malloc0")        push( r_malloc(0) );
 			else if (cmd[0] == "free")           r_free(pop());
+			else if (cmd[0] == "memget")         u = pop(),  t = pop(),  push( mem(t, u) );
+			else if (cmd[0] == "memset")         u = pop(),  t = pop(),  mem(t, u) = pop();
 
 			// else if (cmd[0] == "get.i")       var(cmd[1]) =  mem( var(cmd[2]), stoi(cmd[3]) );
 			// else if (cmd[0] == "get.v")       var(cmd[1]) =  mem( var(cmd[2]), var(cmd[3]) );

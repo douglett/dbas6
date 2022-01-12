@@ -56,6 +56,11 @@ struct Parser : InputFile {
 		emit({ "halt" });
 		p_section("function_defs");
 		if (!eof())  error(ERR_EXPECTED_EOF);
+		// standard library
+		em.topcomment("------------------------");
+		em.topcomment("--- Standard Library ---");
+		em.topcomment("------------------------");
+		std_stringarray();
 	}
 
 	void p_section(const string& section) {
@@ -134,6 +139,21 @@ struct Parser : InputFile {
 					emit({ "drop" });
 				}
 			}
+			// string array (special case?)
+			else if (type == "string[]") {
+				emit({ "malloc0" });  // create string[]
+				emit({ set_cmd, name });
+				em.emitsub({ get_cmd, name });
+				em.emitsub({ "call", "string[]_$deconstruct" });
+				em.emitsub({ "free" });
+				// if (expect("'=")) {
+				// 	emit({ get_cmd, name });
+				// 	p_varpath(type);
+				// 	emit({ "call", "string[]_$clone" });
+				// 	emit({ "drop" });
+				// }
+			}
+
 			// array object assignment
 			// else if (is_arraytype(type)) {
 			// 	auto& ma = setup.pushlist();
@@ -218,13 +238,16 @@ struct Parser : InputFile {
 			else if (peek("'call"))       p_call();
 			else if (peek("'print"))      p_print();
 			// else if (peek("'input"))      p_input(l);
-			// else if (peek("'redim"))      p_redim(l);
 			else if (peek("'return"))     p_return();
 			else if (peek("'break"))      p_break();
 			else if (peek("'continue"))   p_continue();
 			else if (peek("'if"))         p_if();
 			else if (peek("'while"))      p_while();
 			else if (peek("'for"))        p_for();
+			// arrays
+			// else if (peek("'redim"))      p_redim(l);
+			else if (peek("'push"))       p_push();
+			else if (peek("'pop"))        p_pop();
 			else    error(ERR_UNKNOWN_COMMAND);
 	}
 
@@ -417,6 +440,35 @@ struct Parser : InputFile {
 		flag_while--;
 	}
 
+	void p_push() {
+		dsym();
+		require("'push");
+		auto t = p_varpath();
+		require("',");
+		auto u = p_anyexpr();
+		require("endl");
+		if (!is_arraytype(t) && t != "string")  error(ERR_UNEXPECTED_TYPE);
+		if ((t == "string" || t == "int[]") && u == "int")
+			emit({ "mempush" }),
+			emit({ "drop" });
+		else if (t == "string[]" && (u == "string" || u == "int[]"))
+			emit({ "call", "string[]_$push" }),
+			emit({ "drop" });
+		else  error(ERR_UNMATCHED_TYPES);
+	}
+
+	void p_pop() {
+		dsym();
+		require("'pop");
+		string t;
+		t = p_varpath();
+		require("endl");
+		if (t == "string" || t == "int[]")
+			emit({ "mempop" }),
+			emit({ "drop" });
+		else  error(ERR_UNEXPECTED_TYPE);
+	}
+
 
 
 	// --- Expressions ---
@@ -538,7 +590,7 @@ struct Parser : InputFile {
 		return error(ERR_UNKNOWN_ATOM), "nil";
 	}
 
-	string p_varpath() {
+	string p_varpath(const string& type="") {
 		// string type = p_varpath_base();
 		// while (!eof())
 		// 	if       (peek("'."))  lhs = p.pop(),  type = p_varpath_prop(type, p),    p.back().push(lhs);
@@ -548,6 +600,7 @@ struct Parser : InputFile {
 
 		auto& def = p_vp_base();
 		emit({ (def.isglobal ? "get_global" : "get"), def.name });
+		if (type.length() && type != def.type)  error(ERR_UNMATCHED_TYPES);
 		return def.type;
 	}
 
@@ -680,6 +733,75 @@ struct Parser : InputFile {
 
 
 	// --- Std-library functions ---
+
+	void std_stringarray() {
+		string label;
+		// destructor (dest) -> dest
+		label = "string[]_$deconstruct";
+		emlabel({ label });
+		emit({ "len" });
+		emit({ "i", "0" });
+		emit({ "eq" });
+		emit({ "jumpif", label+"_end" });
+		emit({ "mempop" });
+		emit({ "free" });
+		emit({ "jump", label });
+		emlabel({ label+"_end" });
+		emit({ "ret" });
+
+		// push (dest, src) -> dest
+		label = "string[]_$push";
+		emlabel({ label });
+		emit({ "stash" });
+		emit({ "malloc0" });
+		emit({ "unstash" });
+		emit({ "memcopy" });
+		emit({ "drop" });
+		emit({ "mempush" });
+		emit({ "drop" });
+		emit({ "ret" });
+
+		// clone (dest, src) -> dest
+		// label = "string[]_$clone";
+		// emlabel({ label });
+		// // get arguments
+		// emit({ "let", "src" }, "get arguments");
+		// emit({ "set", "src" });
+		// emit({ "let", "dest" });
+		// emit({ "set", "dest" });
+		// // iteration locals
+		// emit({ "let", "i" }, "iteration locals");
+		// emit({ "let", "src_len" });
+		// emit({ "get", "src" });
+		// emit({ "len" });
+		// emit({ "set", "src_len" });
+		// emit({ "drop" });
+		// // deconstruct dest
+		// emit({ "get", "dest" }, "deconstruct dest");
+		// emit({ "call", "string[]_$deconstruct" });
+		// emit({ "drop" });
+		// // loop each item in src
+		// emlabel({ label+"_loopstart" });
+		// emit({ "get", "i" });
+		// emit({ "get", "src_len" });
+		// emit({ "lt" });
+		// emit({ "jumpifn", label+"_loopend" });
+		// // clone string
+		// emit({ "get", "dest" });
+		// emit({ "malloc0" });
+		// emit({ "get", "src" });
+		// emit({ "get", "i" });
+		// emit({ "memget" });
+		// emit({ "memcat" });
+		// emit({ "drop" });
+		// emit({ "mempush" });
+		// emit({ "drop" });
+		// emit({ "jump", label+"_loopstart" });
+		// // return
+		// emlabel({ label+"_loopend" });
+		// emit({ "get", "dest" });
+		// emit({ "ret" });
+	}
 
 	// void std_len(Node& p) {
 	// 	require("'len '(");
