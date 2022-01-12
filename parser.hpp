@@ -147,10 +147,10 @@ struct Parser : InputFile {
 				em.emitsub("call string[]_$deconstruct");
 				em.emitsub("free");
 				// if (expect("'=")) {
-				// 	emit({ get_cmd, name });
+				// 	emit(get_cmd + name);
 				// 	p_varpath(type);
-				// 	emit({ "call", "string[]_$clone" });
-				// 	emit({ "drop" });
+				// 	emit("call string[]_$clone");
+				// 	emit("drop");
 				// }
 			}
 
@@ -610,18 +610,18 @@ struct Parser : InputFile {
 	// 	// local vars
 	// 	if (cfuncname.length() && functions.at(cfuncname).args.count(name)) {
 	// 		auto& d = functions.at(cfuncname).args.at(name);
-	// 		emit({ "get", name });
+	// 		emit("get " + name);
 	// 		return d.type;
 	// 	}
 	// 	else if (cfuncname.length() && functions.at(cfuncname).locals.count(name)) {
 	// 		auto& d = functions.at(cfuncname).locals.at(name);
-	// 		emit({ "get", name });
+	// 		emit("get " + name);
 	// 		return d.type;
 	// 	}
 	// 	// global vars
 	// 	else if (globals.count(name)) {
 	// 		auto&d = globals[name];
-	// 		emit({ "get_global", name });
+	// 		emit("get_global " + name);
 	// 		return d.type;
 	// 	}
 	// 	else  return error(ERR_UNDEFINED_VARIABLE), "nil";
@@ -763,44 +763,44 @@ struct Parser : InputFile {
 
 		// clone (dest, src) -> dest
 		// label = "string[]_$clone";
-		// emlabel({ label });
+		// emlabel(label);
 		// // get arguments
-		// emit({ "let", "src" }, "get arguments");
-		// emit({ "set", "src" });
-		// emit({ "let", "dest" });
-		// emit({ "set", "dest" });
+		// emit("let src", "get arguments");
+		// emit("set src");
+		// emit("let dest");
+		// emit("set dest");
 		// // iteration locals
-		// emit({ "let", "i" }, "iteration locals");
-		// emit({ "let", "src_len" });
-		// emit({ "get", "src" });
-		// emit({ "len" });
-		// emit({ "set", "src_len" });
-		// emit({ "drop" });
+		// emit("let i", "iteration locals");
+		// emit("let src_len");
+		// emit("get src");
+		// emit("len");
+		// emit("set", "src_len");
+		// emit("drop");
 		// // deconstruct dest
-		// emit({ "get", "dest" }, "deconstruct dest");
-		// emit({ "call", "string[]_$deconstruct" });
-		// emit({ "drop" });
+		// emit("get dest", "deconstruct dest");
+		// emit("call string[]_$deconstruct");
+		// emit("drop");
 		// // loop each item in src
-		// emlabel({ label+"_loopstart" });
-		// emit({ "get", "i" });
-		// emit({ "get", "src_len" });
-		// emit({ "lt" });
-		// emit({ "jumpifn", label+"_loopend" });
+		// emlabel(label+"_loopstart");
+		// emit("get i");
+		// emit("get src_len");
+		// emit("lt");
+		// emit("jumpifn " + label + "_loopend");
 		// // clone string
-		// emit({ "get", "dest" });
-		// emit({ "malloc0" });
-		// emit({ "get", "src" });
-		// emit({ "get", "i" });
-		// emit({ "memget" });
-		// emit({ "memcat" });
-		// emit({ "drop" });
-		// emit({ "mempush" });
-		// emit({ "drop" });
-		// emit({ "jump", label+"_loopstart" });
+		// emit("get dest");
+		// emit("malloc0");
+		// emit("get src");
+		// emit("get i");
+		// emit("memget");
+		// emit("memcat");
+		// emit("drop");
+		// emit("mempush");
+		// emit("drop");
+		// emit("jump " + label + "_loopstart");
 		// // return
-		// emlabel({ label+"_loopend" });
-		// emit({ "get", "dest" });
-		// emit({ "ret" });
+		// emlabel(label + "_loopend");
+		// emit("get dest");
+		// emit("ret");
 	}
 
 	// void std_len(Node& p) {
