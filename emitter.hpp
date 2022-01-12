@@ -15,14 +15,14 @@ struct Emitter {
 	// int flag_lastret = 0;  // emit flags
 	
 
-	void emit(const vector<string>& vs, const string& c="") {
+	void emit(const string& ln, const string& c="") {
 		// flag_lastret = (vs.size() && vs.at(0) == "ret");
-		output.push_back( "\t" + join(vs) + (c.length() ? COMMENT_SEP + c : "") );
+		output.push_back( "\t" + ln + (c.length() ? COMMENT_SEP + c : "") );
 	}
-	void emitsub(const vector<string>& vs, const string& c="") {
+	void emitsub(const string& ln, const string& c="") {
 		// emit-subsection (is there a better name for this?)
 		// flag_lastret = (vs.size() && vs.at(0) == "ret") * 2;
-		subsection.push_back( "\t" + join(vs) + (c.length() ? COMMENT_SEP + c : "") );
+		subsection.push_back( "\t" + ln + (c.length() ? COMMENT_SEP + c : "") );
 	}
 	void joinsub() {
 		output.insert( output.end(), subsection.begin(), subsection.end() );

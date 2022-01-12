@@ -35,7 +35,7 @@ struct Parser : InputFile {
 
 
 	// --- Emitter shortcuts ---
-	void emit(const vector<string>& vs, const string& c="") { em.emit(vs, c); }
+	void emit(const string& ln, const string& c="") { em.emit(ln, c); }
 	void emlabel(const string& s) { em.label(s); }
 	void dsym() { em.comment( "DSYM " + to_string(lno) + "   " + peekline() ); };
 
@@ -50,10 +50,10 @@ struct Parser : InputFile {
 		em.header();
 		// p_section("type_defs");
 		p_section("dim_global");
-		emit({ "call", "main" });
+		emit("call main");
 		emlabel( "SYSTEM_$" + string("teardown") );
 		em.joinsub();
-		emit({ "halt" });
+		emit("halt");
 		p_section("function_defs");
 		if (!eof())  error(ERR_EXPECTED_EOF);
 		// standard library
@@ -102,7 +102,7 @@ struct Parser : InputFile {
 	void p_dim() {
 		dsym();
 		const int isglobal = cfuncname.length() == 0;
-		const string get_cmd = (isglobal ? "get_global" : "get"), set_cmd = (isglobal ? "set_global" : "set");
+		const string get_cmd = (isglobal ? "get_global " : "get "), set_cmd = (isglobal ? "set_global " : "set ");
 		string name, type;
 		if      (expect("'dim @identifier @identifier"))         name = presults.at(1), type = presults.at(0);
 		else if (expect("'dim @identifier '[ '] @identifier"))   name = presults.at(1), type = presults.at(0) + "[]";
@@ -117,35 +117,35 @@ struct Parser : InputFile {
 			namecollision(name);
 			if    (isglobal)  globals[name] = { name, type, .isglobal=isglobal };
 			else  functions.at(cfuncname).locals[name] = { name, type, .isglobal=isglobal };
-			emit({ (isglobal ? "let_global" : "let"), name }, type);
+			emit( (isglobal ? "let_global " : "let ") + name, type );
 			// -- initialisers (TODO: bit messy)
 			// int init
 			if (type == "int") {
 				if (expect("'="))
 					p_intexpr(),
-					emit({ set_cmd, name });
+					emit(set_cmd + name);
 			}
 			// string init
 			else if (type == "string" || type == "int[]") {
-				emit({ "malloc0" });  // create string
-				emit({ set_cmd, name });
-				em.emitsub({ get_cmd, name });  // defer string teardown
-				em.emitsub({ "free" });
+				emit("malloc0");  // create string
+				emit(set_cmd + name);
+				em.emitsub(get_cmd + name);  // defer string teardown
+				em.emitsub("free");
 				if (expect("'=")) {
-					emit({ get_cmd, name });
+					emit(get_cmd + name);
 					auto t = p_strexpr();
-					emit({ "memcat" });
-					emit({ t == "string$" ? "free" : "drop" });
-					emit({ "drop" });
+					emit("memcat");
+					emit(t == "string$" ? "free" : "drop");
+					emit("drop");
 				}
 			}
 			// string array (special case?)
 			else if (type == "string[]") {
-				emit({ "malloc0" });  // create string[]
-				emit({ set_cmd, name });
-				em.emitsub({ get_cmd, name });
-				em.emitsub({ "call", "string[]_$deconstruct" });
-				em.emitsub({ "free" });
+				emit("malloc0");  // create string[]
+				emit(set_cmd + name);
+				em.emitsub(get_cmd + name);
+				em.emitsub("call string[]_$deconstruct");
+				em.emitsub("free");
 				// if (expect("'=")) {
 				// 	emit({ get_cmd, name });
 				// 	p_varpath(type);
@@ -201,7 +201,7 @@ struct Parser : InputFile {
 			typecheck(type), namecollision(name);
 				functions.at(cfuncname).args[name] = { name, type, .isglobal=0, .index=argc };  // save argument
 				argc++;  // increment args count
-				emit({ "let", name });
+				emit("let " + name);
 			if (peek("')"))  break;
 			require("',");
 		}
@@ -209,7 +209,7 @@ struct Parser : InputFile {
 		// emit arguments
 		if (argc) {
 			for (int i = argc-1; i >= 0; i--)
-				emit({ "set", argat(cfuncname, i).name }, "argument "+to_string(i));
+				emit( ("set " + argat(cfuncname, i).name), "argument "+to_string(i) );
 		}
 		// local dims
 		while (!eof())
@@ -224,8 +224,8 @@ struct Parser : InputFile {
 		emlabel(cfuncname + "_$teardown");
 		em.comment("function teardown");
 		em.joinsub();
-		emit({ "get", "$rval" });
-		emit({ "ret" });
+		emit("get $rval");
+		emit("ret");
 		cfuncname = "";
 	}
 
@@ -259,15 +259,15 @@ struct Parser : InputFile {
 		// int assign (expression)
 		if (def.type == "int") {
 			p_intexpr();
-			emit({ (def.isglobal ? "set_global" : "set"), def.name });
+			emit( (def.isglobal ? "set_global " : "set ") + def.name );
 		}
 		// string assign (expression)
 		else if (def.type == "string" || def.type == "int[]") {
-			emit({ (def.isglobal ? "get_global" : "get"), def.name });
+			emit( (def.isglobal ? "get_global " : "get ") + def.name );
 			auto t = p_strexpr();
-			emit({ "memcopy" });
-			emit({ t == "string$" ? "free" : "drop" });
-			emit({ "drop" });
+			emit("memcopy");
+			emit(t == "string$" ? "free" : "drop");
+			emit("drop");
 		}
 		// object assign (clone)
 		else  error(ERR_UNEXPECTED_TYPE);
@@ -278,7 +278,7 @@ struct Parser : InputFile {
 		require("'call");
 		p_expr_call();
 		require("endl"), nextline();
-		emit({ "drop" }, "discard return value");
+		emit("drop", "discard return value");
 	}
 
 	void p_print() {
@@ -286,16 +286,16 @@ struct Parser : InputFile {
 		require("'print");
 		while (!eol())
 			if      (peek("endl"))        break;
-			else if (expect("',"))        emit({ "print_lit", "\" \"" });
-			else if (expect("';"))        emit({ "print_lit", "\"\t\"" });
-			else if (expect("@literal"))  emit({ "print_lit", presults.at(0) });
+			else if (expect("',"))        emit("print_lit \" \"");
+			else if (expect("';"))        emit("print_lit \"\t\"");
+			else if (expect("@literal"))  emit("print_lit " + presults.at(0));
 			else {
 				auto t = p_anyexpr();
-				if      (t == "int")      emit({ "print" });
-				else if (t == "string")   emit({ "print_str" });
+				if      (t == "int")      emit("print");
+				else if (t == "string")   emit("print_str");
 				else    error(ERR_UNEXPECTED_TYPE);
 			}
-		emit({ "print_lit", "\"\\n\"" });
+		emit("print_lit \"\\n\"");
 		require("endl"), nextline();
 	}
 
@@ -322,11 +322,11 @@ struct Parser : InputFile {
 	void p_return() {
 		dsym();
 		require("'return");
-		if    (expect("endl"))  emit({ "i", "0" }, "default return value");
+		if    (expect("endl"))  emit("i 0", "default return value");
 		else  p_intexpr();
 		require("endl"), nextline();
-		emit({ "set", "$rval" });
-		emit({ "jump", cfuncname + "_$teardown" });
+		emit("set $rval");
+		emit("jump " + cfuncname + "_$teardown");
 	}
 
 	void p_break() {
@@ -339,7 +339,7 @@ struct Parser : InputFile {
 			if (break_level < 1 || break_level > flag_while)  error(ERR_BREAK_LEVEL_BAD);
 		}
 		require("endl"), nextline();
-		emit({ "jump", labelstack.at(flag_while - break_level) + "end" });
+		emit( "jump " + labelstack.at(flag_while - break_level) + "end" );
 	}
 
 	void p_continue() {
@@ -352,7 +352,7 @@ struct Parser : InputFile {
 			if (cont_level < 1 || cont_level > flag_while)  error(ERR_CONTINUE_LEVEL_BAD);
 		}
 		require("endl"), nextline();
-		emit({ "jump", labelstack.at(flag_while - cont_level) + "start" });
+		emit( "jump " + labelstack.at(flag_while - cont_level) + "start" );
 	}
 
 	void p_if() {
@@ -363,17 +363,17 @@ struct Parser : InputFile {
 		dsym();
 		// first comparison
 		p_intexpr(), require("endl"), nextline();
-		emit({ "jumpifn", label + to_string(cond+1) }, "first condition");
+		emit( "jumpifn " + label + to_string(cond+1), "first condition" );
 		p_block();
-		emit({ "jump", label + "end" });
+		emit("jump " + label + "end");
 		// else-if statements
 		while (expect("'else 'if")) {
 			emlabel(label + to_string(++cond));
 			dsym();
 			p_intexpr(), require("endl"), nextline();
-			emit({ "jumpifn", label+to_string(cond+1) }, "condition "+to_string(cond));
+			emit( ("jumpifn " + label+to_string(cond+1)), "condition "+to_string(cond) );
 			p_block();
-			emit({ "jump", label + "end" });
+			emit("jump " + label + "end");
 		}
 		// if all conditions fail, we end up here
 		emlabel(label + to_string(++cond));
@@ -397,12 +397,12 @@ struct Parser : InputFile {
 		dsym();
 		// comparison
 		p_intexpr(), require("endl"), nextline();
-		emit({ "jumpifn", label + "end" });
+		emit("jumpifn " + label + "end");
 		// main block
 		p_block();
 		// block end
 		require("'end 'while endl"), nextline();
-		emit({ "jump", label + "start" });  // loop
+		emit("jump " + label + "start");  // loop
 		emlabel(label + "end");
 		labelstack.pop_back();
 		flag_while--;
@@ -417,24 +417,24 @@ struct Parser : InputFile {
 		dsym();
 		// from-value
 		require("@identifier '="), name = presults.at(0), p_intexpr();
-		emit({ "set", name }, "initialize");
+		emit("set " + name, "initialize");
 		emlabel(label + "start");
 		// to-value and bounds check
-		emit({ "get", name });
+		emit("get " + name);
 		require("'to"), p_intexpr();
-		emit({ "lte" });
-		emit({ "jumpifn", label + "end" }, "test iteration");
+		emit("lte");
+		emit("jumpifn " + label + "end", "test iteration");
 		// step (TODO)
 		require("endl"), nextline();
 		// main block
 		p_block();
 		// block end
 		require("'end 'for endl"), nextline();
-		emit({ "get", name });  // iterate
-		emit({ "i", "1" });
-		emit({ "add" });
-		emit({ "set", name });
-		emit({ "jump", label + "start" });  // loop
+		emit("get " + name);  // iterate
+		emit("i 1");
+		emit("add");
+		emit("set " + name);
+		emit("jump " + label + "start");  // loop
 		emlabel(label + "end");
 		labelstack.pop_back();
 		flag_while--;
@@ -449,11 +449,11 @@ struct Parser : InputFile {
 		require("endl");
 		if (!is_arraytype(t) && t != "string")  error(ERR_UNEXPECTED_TYPE);
 		if ((t == "string" || t == "int[]") && u == "int")
-			emit({ "mempush" }),
-			emit({ "drop" });
+			emit("mempush"),
+			emit("drop");
 		else if (t == "string[]" && (u == "string" || u == "int[]"))
-			emit({ "call", "string[]_$push" }),
-			emit({ "drop" });
+			emit("call string[]_$push"),
+			emit("drop");
 		else  error(ERR_UNMATCHED_TYPES);
 	}
 
@@ -464,8 +464,8 @@ struct Parser : InputFile {
 		t = p_varpath();
 		require("endl");
 		if (t == "string" || t == "int[]")
-			emit({ "mempop" }),
-			emit({ "drop" });
+			emit("mempop"),
+			emit("drop");
 		else  error(ERR_UNEXPECTED_TYPE);
 	}
 
@@ -482,7 +482,7 @@ struct Parser : InputFile {
 		if (expect("'| '|")) {
 			auto u = p_expr_or();
 			if (t != "int" || t != u)  error(ERR_EXPECTED_INT);
-			emit({ "or" });
+			emit("or");
 		}
 		return t;
 	}
@@ -492,7 +492,7 @@ struct Parser : InputFile {
 		if (expect("'& '&")) {
 			auto u = p_expr_and();
 			if (t != "int" || t != u)  error(ERR_EXPECTED_INT);
-			emit({ "and" });
+			emit("and");
 		}
 		return t;
 	}
@@ -512,7 +512,7 @@ struct Parser : InputFile {
 				auto u = p_expr_add();
 				// if (u != "int")  error(ERR_EXPECTED_INT);
 				if (u != "int")  error(ERR_UNMATCHED_TYPES);
-				emit({ opcode });
+				emit(opcode);
 			}
 			// string comparison
 			else if (t == "string" || t == "string$" || t == "int[]") {
@@ -522,11 +522,11 @@ struct Parser : InputFile {
 				auto u = p_expr_add();
 				// if (u != "string" && u != "string$")  error(ERR_EXPECTED_STRING);
 				if (u != "string" && u != "string$" && u != "int[]")  error(ERR_UNMATCHED_TYPES);
-				emit({ opcode });
-				emit({ "stash" });  // manage strings on stack
-				emit({ u == "string$" ? "free" : "drop" });
-				emit({ t == "string$" ? "free" : "drop" });
-				emit({ "unstash" });
+				emit(opcode);
+				emit("stash");  // manage strings on stack
+				emit(u == "string$" ? "free" : "drop");
+				emit(t == "string$" ? "free" : "drop");
+				emit("unstash");
 			}
 			else  error(ERR_OBJECT_OPERATOR_BAD);  // unexpected type for this operator
 			return "int";  // ok
@@ -544,24 +544,24 @@ struct Parser : InputFile {
 				auto u = p_expr_mul();
 				// if (u != "int")  error(ERR_EXPECTED_INT);
 				if (u != "int")  error(ERR_UNMATCHED_TYPES);
-				emit({ opcode });
+				emit(opcode);
 			}
 			// string concatenation
 			else if (t == "string" || t == "string$" || t == "int[]") {
 				if (op == "-")  error(ERR_STRING_OPERATOR_BAD);
 				if (t == "string" || t == "int[]") {
-					emit({ "stash" });    // convert to string expression (on the stack)
-					emit({ "malloc0" });
-					emit({ "unstash" });
-					emit({ "memcat" });
-					emit({ "drop" });
+					emit("stash");    // convert to string expression (on the stack)
+					emit("malloc0");
+					emit("unstash");
+					emit("memcat");
+					emit("drop");
 					t = "string$";
 				}
 				auto u = p_expr_mul();
 				// if (u != "string" && u != "string$")  error(ERR_EXPECTED_STRING);
 				if (u != "string" && u != "string$" && u != "int[]")  error(ERR_UNMATCHED_TYPES);
-				emit({ "memcat" });
-				emit({ u == "string$" ? "free" : "drop" });  // manage strings on stack
+				emit("memcat");
+				emit(u == "string$" ? "free" : "drop");  // manage strings on stack
 			}
 			else  error(ERR_OBJECT_OPERATOR_BAD);  // unexpected type for this operator
 		}
@@ -574,18 +574,18 @@ struct Parser : InputFile {
 			string opcode = presults.at(0) == "*" ? "mul" : "div";
 			auto u = p_expr_atom();
 			if (t != "int" || t != u)  error(ERR_EXPECTED_INT);
-			emit({ opcode });
+			emit(opcode);
 		}
 		return t;
 	}
 
 	string p_expr_atom() {
-		if      (expect("'true"))         return emit({ "i", "1" }, "true" ),    "int";
-		else if (expect("'false"))        return emit({ "i", "0" }, "false"),    "int";
-		else if (expect("@integer"))      return emit({ "i", presults.at(0) }),  "int";
+		if      (expect("'true"))         return emit("i 1", "true" ),    "int";
+		else if (expect("'false"))        return emit("i 0", "false"),    "int";
+		else if (expect("@integer"))      return emit("i " + presults.at(0)),  "int";
 		else if (peek("identifier '("))   return p_expr_call();
 		else if (peek("identifier"))      return p_varpath();
-		else if (expect("@literal"))      return emit({ "malloc0" }),  emit({ "memcat_lit", presults.at(0) }),  "string$";
+		else if (expect("@literal"))      return emit("malloc0"),  emit("memcat_lit " + presults.at(0)),  "string$";
 		else if (eol())                   error(ERR_UNEXPECTED_EOL);
 		return error(ERR_UNKNOWN_ATOM), "nil";
 	}
@@ -599,7 +599,7 @@ struct Parser : InputFile {
 		// return type;
 
 		auto& def = p_vp_base();
-		emit({ (def.isglobal ? "get_global" : "get"), def.name });
+		emit( (def.isglobal ? "get_global " : "get ") + def.name );
 		if (type.length() && type != def.type)  error(ERR_UNMATCHED_TYPES);
 		return def.type;
 	}
@@ -696,19 +696,19 @@ struct Parser : InputFile {
 		int argc = 0, strexprc = 0;
 		// create temp string array (TODO: could optimise this)
 		if (argstrcount(fname))
-			emit({ "malloc0" }, "create temp string array"),
-			emit({ "set", "$tmp" });
+			emit("malloc0", "create temp string array"),
+			emit("set $tmp");
 		// arguments count
 		while (!eol() && !peek("')")) {
 			auto t = p_anyexpr();
 			argc++;
 			auto& def = argat(fname, argc-1);
 			if (t == "string$" && def.type == "string") {  // special case - string expressions
-				emit({ "cpstash" }, "save temp string");
-				emit({ "get", "$tmp" });
-				emit({ "unstash" });
-				emit({ "mempush" });
-				emit({ "drop" });
+				emit("cpstash", "save temp string");
+				emit("get $tmp");
+				emit("unstash");
+				emit("mempush");
+				emit("drop");
 				strexprc++;
 			}
 			else if (def.type != t)
@@ -718,14 +718,14 @@ struct Parser : InputFile {
 		require("')");
 		if (argc != functions.at(fname).args.size())  error(ERR_ARGUMENT_COUNT_MISMATCH);
 		// do call
-		emit({ "call", fname });
+		emit("call " + fname);
 		// cleanup
 		if (argstrcount(fname)) {
-			emit({ "get", "$tmp" }, "cleanup temp string array");
+			emit("get $tmp", "cleanup temp string array");
 			for (int i = 0; i < strexprc; i++)
-				emit({ "mempop" }),
-				emit({ "free" });
-			emit({ "free" });
+				emit("mempop"),
+				emit("free");
+			emit("free");
 		}
 		return "int";
 	}
@@ -738,28 +738,28 @@ struct Parser : InputFile {
 		string label;
 		// destructor (dest) -> dest
 		label = "string[]_$deconstruct";
-		emlabel({ label });
-		emit({ "len" });
-		emit({ "i", "0" });
-		emit({ "eq" });
-		emit({ "jumpif", label+"_end" });
-		emit({ "mempop" });
-		emit({ "free" });
-		emit({ "jump", label });
-		emlabel({ label+"_end" });
-		emit({ "ret" });
+		emlabel(label);
+		emit("len");
+		emit("i 0");
+		emit("eq");
+		emit("jumpif " + label + "_end");
+		emit("mempop");
+		emit("free");
+		emit("jump " + label);
+		emlabel(label + "_end");
+		emit("ret");
 
 		// push (dest, src) -> dest
 		label = "string[]_$push";
-		emlabel({ label });
-		emit({ "stash" });
-		emit({ "malloc0" });
-		emit({ "unstash" });
-		emit({ "memcopy" });
-		emit({ "drop" });
-		emit({ "mempush" });
-		emit({ "drop" });
-		emit({ "ret" });
+		emlabel(label);
+		emit("stash");
+		emit("malloc0");
+		emit("unstash");
+		emit("memcopy");
+		emit("drop");
+		emit("mempush");
+		emit("drop");
+		emit("ret");
 
 		// clone (dest, src) -> dest
 		// label = "string[]_$clone";
