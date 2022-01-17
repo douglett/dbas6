@@ -465,6 +465,11 @@ struct Parser : InputFile {
 		require("endl");
 		if (t == "string" || t == "int[]")
 			emit("mempop"),
+			emit("drop"),
+			emit("drop");
+		else if (t == "string[]")
+			emit("mempop"),
+			emit("free"),
 			emit("drop");
 		else  error(ERR_UNEXPECTED_TYPE);
 	}
@@ -758,8 +763,8 @@ struct Parser : InputFile {
 		emit("memcopy");
 		emit("drop");
 		emit("mempush");
-		emit("drop");
 		emit("ret");
+
 
 		// clone (dest, src) -> dest
 		// label = "string[]_$clone";
@@ -774,7 +779,7 @@ struct Parser : InputFile {
 		// emit("let src_len");
 		// emit("get src");
 		// emit("len");
-		// emit("set", "src_len");
+		// emit("set src_len");
 		// emit("drop");
 		// // deconstruct dest
 		// emit("get dest", "deconstruct dest");

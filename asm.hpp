@@ -202,10 +202,13 @@ struct ASM {
 		printf("   heap:    %d \n", heap.size() );
 		printf("   frame:   %d \n", fstack.size() );
 		printf("   stack:   %d \n", stack_top );
-		printf("   > %d \n", stack[stack_top] );
-		
-		// for (int32_t i = 0; i <= stack_top; i++)
-		// 	printf("   > %d \n", stack[i] );
+		// return value
+		if (stack_top == 1)
+			printf("   ret > %d \n", stack[stack_top] );
+		// debug unusual stack state
+		else
+			for (int32_t i = 0; i <= stack_top; i++)
+				printf("     %02d  %d \n", i, stack[i] );
 	}
 
 

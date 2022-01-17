@@ -6,13 +6,8 @@ function main()
 	push s, 65
 	print "here: [" s "]"
 	pop s
-	# pop s, i
+	pop s
 	print "here2: [" s "], " i
-
 	push sa, s
-
-	# push lines, "fart"
-	# pop lines, s
-	# insert lines, 4, s
-	# erase lines, 4, s
+	# pop sa
 end function
