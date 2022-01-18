@@ -254,16 +254,17 @@ struct Parser : InputFile {
 	void p_let() {
 		dsym();
 		require("'let");
-		auto& def = p_vp_base();
+		string type, getcmd, setcmd;
+		type = p_varpath_set(getcmd, setcmd);
 		require("'=");
 		// int assign (expression)
-		if (def.type == "int") {
+		if (type == "int") {
 			p_intexpr();
-			emit( (def.isglobal ? "set_global " : "set ") + def.name );
+			emit(setcmd);
 		}
 		// string assign (expression)
-		else if (def.type == "string" || def.type == "int[]") {
-			emit( (def.isglobal ? "get_global " : "get ") + def.name );
+		else if (type == "string" || type == "int[]") {
+			emit(getcmd);
 			auto t = p_strexpr();
 			emit("memcopy");
 			emit(t == "string$" ? "free" : "drop");
@@ -451,6 +452,9 @@ struct Parser : InputFile {
 		if ((t == "string" || t == "int[]") && u == "int")
 			emit("mempush"),
 			emit("drop");
+		else if (t == "string[]" && u == "string$")
+			emit("mempush"),
+			emit("drop");
 		else if (t == "string[]" && (u == "string" || u == "int[]"))
 			emit("call string[]_$push"),
 			emit("drop");
@@ -595,30 +599,26 @@ struct Parser : InputFile {
 		return error(ERR_UNKNOWN_ATOM), "nil";
 	}
 
-	// string p_varpath_set(string& setcmd) {
-	// 	// base
-	// 	auto& dim = p_vp_base();
-	// 	string rtype = dim.type;
-	// 	// array type
-	// 	if (peek("'["))
-	// 		emit( (dim.isglobal ? "get_global " : "get ") + dim.name ),
-	// 		rtype = p_vp_arrpos(rtype),
-	// 		setcmd = "memget";
-	// 	else
-	// 		setcmd = (dim.isglobal ? "set_global " : "set ") + dim.name;
-	// 	// return
-	// 	return rtype;
-	// }
-
 	string p_varpath_get() {
+		string rtype, getcmd, setcmd;
+		rtype = p_varpath_set(getcmd, setcmd);
+		emit(getcmd);
+		return rtype;
+	}
+
+	string p_varpath_set(string& getcmd, string& setcmd) {
 		// base
 		auto& dim = p_vp_base();
 		string rtype = dim.type;
-		emit( (dim.isglobal ? "get_global " : "get ") + dim.name );
 		// array type
 		if (peek("'["))
+			emit( (dim.isglobal ? "get_global " : "get ") + dim.name ),
 			rtype = p_vp_arrpos(rtype),
-			emit("memget");
+			getcmd = "memget",
+			setcmd = "memset";
+		else
+			getcmd = (dim.isglobal ? "get_global " : "get ") + dim.name,
+			setcmd = (dim.isglobal ? "set_global " : "set ") + dim.name;
 		// return
 		return rtype;
 	}
