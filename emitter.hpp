@@ -38,12 +38,12 @@ struct Emitter {
 		output.push_back( ";;; " + c );
 	}
 	void header() {
-		topcomment("");
 		time_t now = time(NULL);
 		string timestr = ctime(&now);
 		timestr.pop_back();
+		topcomment("--------------------------------------");
 		topcomment("compiled on:  " + timestr);
-		topcomment("");
+		topcomment("--------------------------------------");
 	}
 
 	// void           lstack_push(const string& label) { while_labels.push_back(label); }

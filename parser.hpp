@@ -56,11 +56,7 @@ struct Parser : InputFile {
 		emit("halt");
 		p_section("function_defs");
 		if (!eof())  error(ERR_EXPECTED_EOF);
-		// standard library
-		em.topcomment("------------------------");
-		em.topcomment("--- Standard Library ---");
-		em.topcomment("------------------------");
-		std_stringarray();
+		std_all();  // standard library
 	}
 
 	void p_section(const string& section) {
@@ -146,12 +142,13 @@ struct Parser : InputFile {
 				em.emitsub(get_cmd + name);
 				em.emitsub("call string[]_$deconstruct");
 				em.emitsub("free");
-				// if (expect("'=")) {
-				// 	emit(get_cmd + name);
-				// 	p_varpath(type);
-				// 	emit("call string[]_$clone");
-				// 	emit("drop");
-				// }
+				if (expect("'=")) {
+					emit(get_cmd + name);
+					auto t = p_anyexpr();
+					if (t != type)  error(ERR_UNMATCHED_TYPES);
+					emit("call string[]_$clone");
+					emit("drop");
+				}
 			}
 
 			// array object assignment
@@ -268,6 +265,14 @@ struct Parser : InputFile {
 			auto t = p_strexpr();
 			emit("memcopy");
 			emit(t == "string$" ? "free" : "drop");
+			emit("drop");
+		}
+		// string[] assign (clone)
+		else if (type == "string[]") {
+			emit(getcmd);
+			auto t = p_anyexpr();
+			if (t != "string[]")  error(ERR_UNMATCHED_TYPES);
+			emit("call string[]_$clone");
 			emit("drop");
 		}
 		// object assign (clone)
@@ -485,6 +490,7 @@ struct Parser : InputFile {
 	void   p_intexpr() { p_expr_or() == "int"    || error(ERR_EXPECTED_INT); }
 	string p_strexpr() { auto t = p_expr_or();  t == "string" || t == "string$" || t == "int[]" || error(ERR_EXPECTED_STRING);  return t; }
 	string p_anyexpr() { return p_expr_or(); }
+	// void   p_typeexpr(const string& type) { auto t = p_expr_or();  t == type || error(ERR_UNMATCHED_TYPES);  return t; }
 
 	string p_expr_or() {
 		auto t = p_expr_and();
@@ -706,8 +712,16 @@ struct Parser : InputFile {
 
 	// --- Std-library functions ---
 
+	void std_all() {
+		em.topcomment("------------------------");
+		em.topcomment("--- Standard Library ---");
+		em.topcomment("------------------------");
+		std_stringarray();
+	}
+
 	void std_stringarray() {
 		string label;
+
 		// destructor (dest) -> dest
 		label = "string[]_$deconstruct";
 		emlabel(label);
@@ -732,47 +746,51 @@ struct Parser : InputFile {
 		emit("mempush");
 		emit("ret");
 
-
 		// clone (dest, src) -> dest
-		// label = "string[]_$clone";
-		// emlabel(label);
-		// // get arguments
-		// emit("let src", "get arguments");
-		// emit("set src");
-		// emit("let dest");
-		// emit("set dest");
-		// // iteration locals
-		// emit("let i", "iteration locals");
-		// emit("let src_len");
-		// emit("get src");
-		// emit("len");
-		// emit("set src_len");
-		// emit("drop");
-		// // deconstruct dest
-		// emit("get dest", "deconstruct dest");
-		// emit("call string[]_$deconstruct");
-		// emit("drop");
-		// // loop each item in src
-		// emlabel(label+"_loopstart");
-		// emit("get i");
-		// emit("get src_len");
-		// emit("lt");
-		// emit("jumpifn " + label + "_loopend");
-		// // clone string
-		// emit("get dest");
-		// emit("malloc0");
-		// emit("get src");
-		// emit("get i");
-		// emit("memget");
-		// emit("memcat");
-		// emit("drop");
-		// emit("mempush");
-		// emit("drop");
-		// emit("jump " + label + "_loopstart");
-		// // return
-		// emlabel(label + "_loopend");
-		// emit("get dest");
-		// emit("ret");
+		label = "string[]_$clone";
+		emlabel(label);
+		// get arguments
+		emit("let src", "get arguments");
+		emit("set src");
+		emit("let dest");
+		emit("set dest");
+		// iteration locals
+		emit("let i", "iteration locals");
+		emit("let src_len");
+		emit("get src");
+		emit("len");
+		emit("set src_len");
+		emit("drop");
+		// deconstruct dest
+		emit("get dest", "deconstruct dest");
+		emit("call string[]_$deconstruct");
+		emit("drop");
+		// loop each item in src
+		emlabel(label+"_loopstart");
+		emit("get i");
+		emit("get src_len");
+		emit("lt");
+		emit("jumpifn " + label + "_loopend");
+		// clone string
+		emit("get dest", "clone string");
+		emit("malloc0");
+		emit("get src");
+		emit("get i");
+		emit("memget");
+		emit("memcat");
+		emit("drop");
+		emit("mempush");
+		emit("drop");
+		// next i
+		emit("get i", "next i");
+		emit("i 1");
+		emit("add");
+		emit("set i");
+		emit("jump " + label + "_loopstart");
+		// return
+		emlabel(label + "_loopend");
+		emit("get dest");
+		emit("ret");
 	}
 
 	// void std_len(Node& p) {
