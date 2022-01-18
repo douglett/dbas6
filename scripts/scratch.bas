@@ -9,5 +9,8 @@ function main()
 	pop s
 	print "here2: [" s "], " i
 	push sa, s
+	
+	print "array test:", sa[0]
+
 	# pop sa
 end function

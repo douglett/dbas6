@@ -443,7 +443,7 @@ struct Parser : InputFile {
 	void p_push() {
 		dsym();
 		require("'push");
-		auto t = p_varpath();
+		auto t = p_varpath_get();
 		require("',");
 		auto u = p_anyexpr();
 		require("endl");
@@ -461,7 +461,7 @@ struct Parser : InputFile {
 		dsym();
 		require("'pop");
 		string t;
-		t = p_varpath();
+		t = p_varpath_get();
 		require("endl");
 		if (t == "string" || t == "int[]")
 			emit("mempop"),
@@ -589,48 +589,39 @@ struct Parser : InputFile {
 		else if (expect("'false"))        return emit("i 0", "false"),    "int";
 		else if (expect("@integer"))      return emit("i " + presults.at(0)),  "int";
 		else if (peek("identifier '("))   return p_expr_call();
-		else if (peek("identifier"))      return p_varpath();
+		else if (peek("identifier"))      return p_varpath_get();
 		else if (expect("@literal"))      return emit("malloc0"),  emit("memcat_lit " + presults.at(0)),  "string$";
 		else if (eol())                   error(ERR_UNEXPECTED_EOL);
 		return error(ERR_UNKNOWN_ATOM), "nil";
 	}
 
-	string p_varpath(const string& type="") {
-		// string type = p_varpath_base();
-		// while (!eof())
-		// 	if       (peek("'."))  lhs = p.pop(),  type = p_varpath_prop(type, p),    p.back().push(lhs);
-		// 	else if  (peek("'["))  lhs = p.pop(),  type = p_varpath_arrpos(type, p),  p.back().push(lhs);
-		// 	else     break;
-		// return type;
-
-		auto& def = p_vp_base();
-		emit( (def.isglobal ? "get_global " : "get ") + def.name );
-		if (type.length() && type != def.type)  error(ERR_UNMATCHED_TYPES);
-		return def.type;
-	}
-
-	// string p_varpath_base() {
-	// 	require("@identifier");
-	// 	auto name = presults.at(0);
-	// 	// local vars
-	// 	if (cfuncname.length() && functions.at(cfuncname).args.count(name)) {
-	// 		auto& d = functions.at(cfuncname).args.at(name);
-	// 		emit("get " + name);
-	// 		return d.type;
-	// 	}
-	// 	else if (cfuncname.length() && functions.at(cfuncname).locals.count(name)) {
-	// 		auto& d = functions.at(cfuncname).locals.at(name);
-	// 		emit("get " + name);
-	// 		return d.type;
-	// 	}
-	// 	// global vars
-	// 	else if (globals.count(name)) {
-	// 		auto&d = globals[name];
-	// 		emit("get_global " + name);
-	// 		return d.type;
-	// 	}
-	// 	else  return error(ERR_UNDEFINED_VARIABLE), "nil";
+	// string p_varpath_set(string& setcmd) {
+	// 	// base
+	// 	auto& dim = p_vp_base();
+	// 	string rtype = dim.type;
+	// 	// array type
+	// 	if (peek("'["))
+	// 		emit( (dim.isglobal ? "get_global " : "get ") + dim.name ),
+	// 		rtype = p_vp_arrpos(rtype),
+	// 		setcmd = "memget";
+	// 	else
+	// 		setcmd = (dim.isglobal ? "set_global " : "set ") + dim.name;
+	// 	// return
+	// 	return rtype;
 	// }
+
+	string p_varpath_get() {
+		// base
+		auto& dim = p_vp_base();
+		string rtype = dim.type;
+		emit( (dim.isglobal ? "get_global " : "get ") + dim.name );
+		// array type
+		if (peek("'["))
+			rtype = p_vp_arrpos(rtype),
+			emit("memget");
+		// return
+		return rtype;
+	}
 
 	const Prog::Dim& p_vp_base() {
 		require("@identifier");
@@ -647,38 +638,14 @@ struct Parser : InputFile {
 		error(ERR_UNDEFINED_VARIABLE);
 		throw std::exception();
 	}
-
-	// string p_varpath_prop(const string& type, Node& p) {
-	// 	require("'. @identifier");
-	// 	auto pname = presults.at(0);
-	// 	if (!types.at(type).members.count(pname))  error2("p_varpath_prop");
-	// 	auto& d = types.at(type).members.at(pname);
-	// 	auto& l = p.pushlist();
-	// 		l.pushtokens({ "get_property", type+"::"+d.name, d.type });
-	// 	return d.type;
-	// }
-
-	// string p_varpath_arrpos(const string& type, Node& p) {
-	// 	if (!is_arraytype(type))  error2("p_varpath_arrpos");
-	// 	require("'[");
-	// 	auto& l = p.pushcmdlist("get_arraypos");
-	// 		p_intexpr(l);
-	// 		l.pushtoken(basetype(type));
-	// 	require("']");
-	// 	return basetype(type);
-	// }
-
-	// string p_varpath_set(Node& p) {
-	// 	auto t  = p_varpath(p);
-	// 	auto& l = p.back();
-	// 	if      (t == "string") ;
-	// 	else if (l.cmd() == "get_local")     l.at(0).tok = "set_local";
-	// 	else if (l.cmd() == "get_global")    l.at(0).tok = "set_global";
-	// 	else if (l.cmd() == "get_property")  l.at(0).tok = "set_property";
-	// 	else if (l.cmd() == "get_arraypos")  l.at(0).tok = "set_arraypos";
-	// 	else    error2("p_varpath_set");
-	// 	return t;
-	// }
+	
+	string p_vp_arrpos(const string& type) {
+		if (!is_arraytype(type))  error(ERR_EXPECTED_ARRAY);
+		require("'[");
+		p_intexpr();
+		require("']");
+		return basetype(type);
+	}
 
 	string p_expr_call() {
 		// peek("@identifier");
