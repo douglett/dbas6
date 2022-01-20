@@ -12,7 +12,7 @@ using namespace std;
 
 struct Prog {
 	struct Dim  { string name, type;  int isglobal, index; };
-	struct Type { string name; map<string, Dim> members; };
+	struct Type { string name; vector<Dim> members; };
 	struct Func { string name; map<string, Dim> args, locals; };
 };
 
@@ -48,7 +48,7 @@ struct Parser : InputFile {
 		labelstack = {};
 		flag_while = flag_ctrlcount = 0;
 		em.header();
-		// p_section("type_defs");
+		p_section("type_defs");
 		p_section("dim_global");
 		emit("call main");
 		emlabel( "SYSTEM_$" + string("teardown") );
@@ -57,43 +57,43 @@ struct Parser : InputFile {
 		p_section("function_defs");
 		if (!eof())  error(ERR_EXPECTED_EOF);
 		std_all();  // standard library
+		usr_all();  // user types
 	}
 
 	void p_section(const string& section) {
 		emlabel( "SYSTEM_$" + section );
 		while (!eof())
 			if      (expect("endl"))  nextline();
-			// else if (section == "type_defs"      && peek("'type"))      p_type(l);
+			else if (section == "type_defs"      && peek("'type"))      p_type();
 			else if (section == "dim_global"     && peek("'dim"))       p_dim();
 			else if (section == "function_defs"  && peek("'function"))  p_function();
 			else    break;
 	}
 
-	// void p_type(Node& p) {
-	// 	require("'type @identifier endl");
-	// 	namecollision(presults.at(0));
-	// 		ctypename        = presults.at(0);
-	// 		types[ctypename] = { ctypename };
-	// 	auto& l = p.pushlist();
-	// 		l.pushtokens({ "type", ctypename });
-	// 	nextline();
-	// 	// type members
-	// 	while (!eof()) {
-	// 		string name, type;
-	// 		if      (expect("endl"))  { nextline();  continue; }
-	// 		else if (expect("'dim @identifier @identifier endl"))  name = presults.at(1), type = presults.at(0);
-	// 		else if (expect("'dim @identifier endl"))  name = presults.at(0), type = "int";
-	// 		else    break;
-	// 		if (type == "integer")  type = "int";  // normalize type name
-	// 			typecheck(type), namecollision(name);
-	// 			types.at(ctypename).members[name] = { name, type };  // save type member
-	// 		l.pushlist().pushtokens({ "dim", name, type });
-	// 		nextline();
-	// 	}
-	// 	// end type
-	// 	ctypename = "";
-	// 	require("'end 'type endl"), nextline();
-	// }
+
+
+	void p_type() {
+		dsym();
+		require("'type @identifier endl");
+		namecollision(presults.at(0));
+			ctypename        = presults.at(0);
+			types[ctypename] = { ctypename };
+		nextline();
+		// type members
+		while (!eof()) {
+			string name, type;
+			if      (expect("endl"))  { nextline();  continue; }
+			else if (expect("'dim @identifier @identifier endl"))  name = presults.at(1), type = presults.at(0);
+			else if (expect("'dim @identifier endl"))  name = presults.at(0), type = "int";
+			else    break;
+			typecheck(type), namecollision(name);
+			types.at(ctypename).members.push_back({ name, type });  // save type member
+			nextline();
+		}
+		// end type
+		ctypename = "";
+		require("'end 'type endl"), nextline();
+	}
 
 	void p_dim() {
 		dsym();
@@ -150,6 +150,21 @@ struct Parser : InputFile {
 					emit("drop");
 				}
 			}
+			// user type
+			else if (types.count(type)) {
+				emit("call " + type + "_$construct");
+				emit(set_cmd + name);
+				em.emitsub(get_cmd + name);
+				em.emitsub("call " + type + "_$deconstruct");
+				em.emitsub("free");
+				if (expect("'=")) {
+					emit(get_cmd + name);
+					auto t = p_anyexpr();
+					if (t != type)  error(ERR_UNMATCHED_TYPES);
+					emit("call " + type + "_$clone");
+					emit("drop");
+				}
+			}
 
 			// array object assignment
 			// else if (is_arraytype(type)) {
@@ -174,6 +189,8 @@ struct Parser : InputFile {
 			// 		p_strexpr(l);
 			// 	}
 			// }
+
+			else  error(ERR_UNDEFINED_TYPE);
 			// comma seperated list
 			if (!expect("',"))  break;
 		}
@@ -273,6 +290,14 @@ struct Parser : InputFile {
 			auto t = p_anyexpr();
 			if (t != "string[]")  error(ERR_UNMATCHED_TYPES);
 			emit("call string[]_$clone");
+			emit("drop");
+		}
+		// user type assign (clone)
+		else if (types.count(type)) {
+			emit(getcmd);
+			auto t = p_anyexpr();
+			if (t != type)  error(ERR_UNMATCHED_TYPES);
+			emit("call " + type + "_$clone");
 			emit("drop");
 		}
 		// object assign (clone)
@@ -455,32 +480,34 @@ struct Parser : InputFile {
 		require("endl");
 		if (!is_arraytype(t) && t != "string")  error(ERR_UNEXPECTED_TYPE);
 		if ((t == "string" || t == "int[]") && u == "int")
-			emit("mempush"),
-			emit("drop");
+			emit("mempush");
 		else if (t == "string[]" && u == "string$")
-			emit("mempush"),
-			emit("drop");
+			emit("mempush");
 		else if (t == "string[]" && (u == "string" || u == "int[]"))
-			emit("call string[]_$push"),
-			emit("drop");
+			emit("call string[]_$push");
 		else  error(ERR_UNMATCHED_TYPES);
+		// drop array ptr
+		emit("drop");
 	}
 
 	void p_pop() {
 		dsym();
 		require("'pop");
-		string t;
-		t = p_varpath_get();
+		auto t = p_varpath_get();
 		require("endl");
 		if (t == "string" || t == "int[]")
 			emit("mempop"),
-			emit("drop"),
 			emit("drop");
 		else if (t == "string[]")
 			emit("mempop"),
-			emit("free"),
-			emit("drop");
+			emit("free");
+		// else if (types.count(t))
+		// 	emit("mempop"),
+		// 	emit(t + "_$deconstruct"),
+		// 	emit("free");
 		else  error(ERR_UNEXPECTED_TYPE);
+		// drop array ptr
+		emit("drop");
 	}
 
 
@@ -679,8 +706,7 @@ struct Parser : InputFile {
 		// arguments count
 		while (!eol() && !peek("')")) {
 			auto t = p_anyexpr();
-			argc++;
-			auto& def = argat(fname, argc-1);
+			auto& def = argat(fname, argc);
 			if (t == "string$" && def.type == "string") {  // special case - string expressions
 				emit("cpstash", "save temp string");
 				emit("get $tmp");
@@ -692,6 +718,7 @@ struct Parser : InputFile {
 			else if (def.type != t)
 				error(ERR_ARGUMENT_TYPE_MISMATCH);    // argument type checking
 			if (!expect("',"))  break;
+			argc++;  // increment argument count
 		}
 		require("')");
 		if (argc != functions.at(fname).args.size())  error(ERR_ARGUMENT_COUNT_MISMATCH);
@@ -722,9 +749,10 @@ struct Parser : InputFile {
 	void std_stringarray() {
 		string label;
 
-		// destructor (dest) -> dest
+		// deconstructor (dest) -> dest
 		label = "string[]_$deconstruct";
 		emlabel(label);
+		em.comment("deconstruct (dest) -> dest");  // function signiature
 		emit("len");
 		emit("i 0");
 		emit("eq");
@@ -738,6 +766,7 @@ struct Parser : InputFile {
 		// push (dest, src) -> dest
 		label = "string[]_$push";
 		emlabel(label);
+		em.comment("push (dest, src) -> dest");  // function signiature
 		emit("stash");
 		emit("malloc0");
 		emit("unstash");
@@ -749,6 +778,7 @@ struct Parser : InputFile {
 		// clone (dest, src) -> dest
 		label = "string[]_$clone";
 		emlabel(label);
+		em.comment("clone (dest, src) -> dest");  // function signiature
 		// get arguments
 		emit("let src", "get arguments");
 		emit("set src");
@@ -791,6 +821,66 @@ struct Parser : InputFile {
 		emlabel(label + "_loopend");
 		emit("get dest");
 		emit("ret");
+	}
+
+	void usr_all() {
+		em.topcomment("------------------------");
+		em.topcomment("---    User Types    ---");
+		em.topcomment("------------------------");
+
+		for (const auto& _t : types) {
+			auto& t    = _t.second;
+			auto& tmem = t.members;
+
+			// type constructor
+			emlabel(t.name + "_$construct");
+			em.comment("construct () -> dest");
+			emit("malloc0");
+			for (auto& d : tmem)
+				if      (d.type == "int")     emit("i 0",     usr_propsig(d)),  emit("mempush");
+				else if (d.type == "string")  emit("malloc0", usr_propsig(d)),  emit("mempush");
+				else    error(ERR_UNEXPECTED_TYPE);
+			emit("ret");
+
+			// type deconstructor
+			emlabel(t.name + "_$deconstruct");
+			em.comment("deconstruct (dest) -> dest");
+			for (int i = tmem.size()-1; i >= 0; i--)
+				if      (tmem[i].type == "int")     emit("mempop", usr_propsig(tmem[i])),  emit("drop");
+				else if (tmem[i].type == "string")  emit("mempop", usr_propsig(tmem[i])),  emit("free");
+				else    error(ERR_UNEXPECTED_TYPE);
+			emit("ret");
+
+			// type clone
+			emlabel(t.name + "_$clone");
+			em.comment("clone (dest, src) -> dest");
+			emit("let dest");
+			emit("set dest");
+			emit("let src");
+			emit("set src");
+			emit("get_dest", "deconstruct dest");
+			emit("call " + t.name + "_$deconstruct");
+			emit("drop");
+			for (int i = 0; i < tmem.size(); i++) {
+				emit("get src", usr_propsig(tmem[i]));
+				emit("i " + to_string(i));
+				emit("memget");
+				if      (tmem[0].type == "int")     emit("mempush");
+				else if (tmem[0].type == "string")
+					emit("stash"),
+					emit("malloc0"),
+					emit("unstash"),
+					emit("memcopy"),
+					emit("drop"),
+					emit("mempush");
+				else  error(ERR_UNEXPECTED_TYPE);
+			}
+			emit("ret");
+		}
+	}
+
+	string usr_propsig(const Prog::Dim& dim) {
+		return dim.name + " (" + dim.type + ")";
 	}
 
 	// void std_len(Node& p) {
@@ -877,12 +967,17 @@ struct Parser : InputFile {
 		if (types.count(name))      error(ERR_ALREADY_DEFINED);
 		if (functions.count(name))  error(ERR_ALREADY_DEFINED);
 		// special type checking, based on parse state
-		if      (ctypename.length()) { if (types.at(ctypename).members.count(name))  error(ERR_ALREADY_DEFINED); }
+		if (ctypename.length()) {
+			for (const auto& d : types.at(ctypename).members)
+				if (d.name == name)  error(ERR_ALREADY_DEFINED);
+		}
 		else if (cfuncname.length()) {
 			if (functions.at(cfuncname).args.count(name))    error(ERR_ALREADY_DEFINED);
 			if (functions.at(cfuncname).locals.count(name))  error(ERR_ALREADY_DEFINED);
 		}
-		else    { if (globals.count(name))  error(ERR_ALREADY_DEFINED); }
+		else {
+			if (globals.count(name))  error(ERR_ALREADY_DEFINED);
+		}
 	}
 	const Prog::Dim& argat(const string& fname, int index) {
 		for (const auto& d : functions.at(fname).args)
