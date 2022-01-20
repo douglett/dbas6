@@ -2,9 +2,9 @@ type test_t
 	dim a
 	dim string s
 end type
-type test2_t
-	# dim test_t test
-end type
+# type test2_t
+# 	dim test_t test
+# end type
 
 
 dim string[] rooms
@@ -22,4 +22,6 @@ function main()
 	for i = 0 to 2
 		print i, rooms[i]
 	end for
+
+	# let test.a = 100
 end function

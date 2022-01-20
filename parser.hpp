@@ -72,6 +72,8 @@ struct Parser : InputFile {
 
 
 
+	// --- User types ---
+
 	void p_type() {
 		dsym();
 		require("'type @identifier endl");
@@ -94,6 +96,79 @@ struct Parser : InputFile {
 		ctypename = "";
 		require("'end 'type endl"), nextline();
 	}
+
+	void usr_all() {
+		em.topcomment("------------------------");
+		em.topcomment("---    User Types    ---");
+		em.topcomment("------------------------");
+
+		for (const auto& _t : types) {
+			auto& t = _t.second;
+
+			// type constructor
+			emlabel(t.name + "_$construct");
+			em.comment("construct () -> dest");
+			emit("malloc0");
+			for (auto& d : t.members)
+				if      (d.type == "int")     emit("i 0",     usr_propsig(d)),  emit("mempush");
+				else if (d.type == "string")  emit("malloc0", usr_propsig(d)),  emit("mempush");
+				else    emit(d.type + "_$construct", usr_propsig(d)),  emit("mempush");
+			emit("ret");
+
+			// type deconstructor
+			emlabel(t.name + "_$deconstruct");
+			em.comment("deconstruct (dest) -> dest");
+			for (int i = t.members.size() - 1; i >= 0; i--) {
+				auto& d = t.members[i];
+				if      (d.type == "int")     emit("mempop", usr_propsig(d)),  emit("drop");
+				else if (d.type == "string")  emit("mempop", usr_propsig(d)),  emit("free");
+				else    emit("mempop", usr_propsig(d)),  emit(d.type + "_$deconstruct"),  emit("free");
+			}
+			emit("ret");
+
+			// type clone
+			emlabel(t.name + "_$clone");
+			em.comment("clone (dest, src) -> dest");
+			emit("let dest");
+			emit("set dest");
+			emit("let src");
+			emit("set src");
+			emit("get_dest", "deconstruct dest");
+			emit("call " + t.name + "_$deconstruct");
+			emit("drop");
+			for (int i = 0; i < t.members.size(); i++) {
+				auto& d = t.members[i];
+				emit("get src", usr_propsig(d));
+				emit("i " + to_string(i));
+				emit("memget");
+				if      (d.type == "int")     emit("mempush");
+				else if (d.type == "string")
+					emit("stash"),
+					emit("malloc0"),
+					emit("unstash"),
+					emit("memcopy"),
+					emit("drop"),     // drop src member
+					emit("mempush");  // push dest member
+				else
+					emit("stash"),
+					emit("malloc0"),
+					emit("unstash"),
+					emit(d.type + "_$clone"),
+					emit("drop"),     // drop src member
+					emit("mempush");  // push dest member
+			}
+			emit("get dest");
+			emit("ret");
+		}
+	}
+
+	string usr_propsig(const Prog::Dim& dim) {
+		return dim.name + " (" + dim.type + ")";
+	}
+
+
+
+	// --- Dim & Function ---
 
 	void p_dim() {
 		dsym();
@@ -136,23 +211,24 @@ struct Parser : InputFile {
 				}
 			}
 			// string array (special case?)
-			else if (type == "string[]") {
-				emit("malloc0");  // create string[]
-				emit(set_cmd + name);
-				em.emitsub(get_cmd + name);
-				em.emitsub("call string[]_$deconstruct");
-				em.emitsub("free");
-				if (expect("'=")) {
-					emit(get_cmd + name);
-					auto t = p_anyexpr();
-					if (t != type)  error(ERR_UNMATCHED_TYPES);
-					emit("call string[]_$clone");
-					emit("drop");
-				}
-			}
-			// user type
-			else if (types.count(type)) {
-				emit("call " + type + "_$construct");
+			// else if (type == "string[]") {
+			// 	emit("malloc0");  // create string[]
+			// 	emit(set_cmd + name);
+			// 	em.emitsub(get_cmd + name);
+			// 	em.emitsub("call string[]_$deconstruct");
+			// 	em.emitsub("free");
+			// 	if (expect("'=")) {
+			// 		emit(get_cmd + name);
+			// 		auto t = p_anyexpr();
+			// 		if (t != type)  error(ERR_UNMATCHED_TYPES);
+			// 		emit("call string[]_$clone");
+			// 		emit("drop");
+			// 	}
+			// }
+			// string[], user_type, user_type[]
+			else if (type == "string[]" || types.count(type)) {
+				if    (type == "string[]")  emit("malloc0", "create string[]");    // special case
+				else  emit("call " + type + "_$construct", "create new " + type);  // general case
 				emit(set_cmd + name);
 				em.emitsub(get_cmd + name);
 				em.emitsub("call " + type + "_$deconstruct");
@@ -243,6 +319,10 @@ struct Parser : InputFile {
 		cfuncname = "";
 	}
 
+
+
+	// --- Block parsing
+
 	void p_block() {
 		while (!eof())
 			if      (expect("endl"))      nextline();  // empty line
@@ -285,15 +365,15 @@ struct Parser : InputFile {
 			emit("drop");
 		}
 		// string[] assign (clone)
-		else if (type == "string[]") {
-			emit(getcmd);
-			auto t = p_anyexpr();
-			if (t != "string[]")  error(ERR_UNMATCHED_TYPES);
-			emit("call string[]_$clone");
-			emit("drop");
-		}
-		// user type assign (clone)
-		else if (types.count(type)) {
+		// else if (type == "string[]") {
+		// 	emit(getcmd);
+		// 	auto t = p_anyexpr();
+		// 	if (t != "string[]")  error(ERR_UNMATCHED_TYPES);
+		// 	emit("call string[]_$clone");
+		// 	emit("drop");
+		// }
+		// string[], user_type, user_type[] ; assign (clone)
+		else if (type == "string[]" || types.count(type)) {
 			emit(getcmd);
 			auto t = p_anyexpr();
 			if (t != type)  error(ERR_UNMATCHED_TYPES);
@@ -821,66 +901,6 @@ struct Parser : InputFile {
 		emlabel(label + "_loopend");
 		emit("get dest");
 		emit("ret");
-	}
-
-	void usr_all() {
-		em.topcomment("------------------------");
-		em.topcomment("---    User Types    ---");
-		em.topcomment("------------------------");
-
-		for (const auto& _t : types) {
-			auto& t    = _t.second;
-			auto& tmem = t.members;
-
-			// type constructor
-			emlabel(t.name + "_$construct");
-			em.comment("construct () -> dest");
-			emit("malloc0");
-			for (auto& d : tmem)
-				if      (d.type == "int")     emit("i 0",     usr_propsig(d)),  emit("mempush");
-				else if (d.type == "string")  emit("malloc0", usr_propsig(d)),  emit("mempush");
-				else    error(ERR_UNEXPECTED_TYPE);
-			emit("ret");
-
-			// type deconstructor
-			emlabel(t.name + "_$deconstruct");
-			em.comment("deconstruct (dest) -> dest");
-			for (int i = tmem.size()-1; i >= 0; i--)
-				if      (tmem[i].type == "int")     emit("mempop", usr_propsig(tmem[i])),  emit("drop");
-				else if (tmem[i].type == "string")  emit("mempop", usr_propsig(tmem[i])),  emit("free");
-				else    error(ERR_UNEXPECTED_TYPE);
-			emit("ret");
-
-			// type clone
-			emlabel(t.name + "_$clone");
-			em.comment("clone (dest, src) -> dest");
-			emit("let dest");
-			emit("set dest");
-			emit("let src");
-			emit("set src");
-			emit("get_dest", "deconstruct dest");
-			emit("call " + t.name + "_$deconstruct");
-			emit("drop");
-			for (int i = 0; i < tmem.size(); i++) {
-				emit("get src", usr_propsig(tmem[i]));
-				emit("i " + to_string(i));
-				emit("memget");
-				if      (tmem[0].type == "int")     emit("mempush");
-				else if (tmem[0].type == "string")
-					emit("stash"),
-					emit("malloc0"),
-					emit("unstash"),
-					emit("memcopy"),
-					emit("drop"),
-					emit("mempush");
-				else  error(ERR_UNEXPECTED_TYPE);
-			}
-			emit("ret");
-		}
-	}
-
-	string usr_propsig(const Prog::Dim& dim) {
-		return dim.name + " (" + dim.type + ")";
 	}
 
 	// void std_len(Node& p) {
