@@ -210,21 +210,6 @@ struct Parser : InputFile {
 					emit("drop");
 				}
 			}
-			// string array (special case?)
-			// else if (type == "string[]") {
-			// 	emit("malloc0");  // create string[]
-			// 	emit(set_cmd + name);
-			// 	em.emitsub(get_cmd + name);
-			// 	em.emitsub("call string[]_$deconstruct");
-			// 	em.emitsub("free");
-			// 	if (expect("'=")) {
-			// 		emit(get_cmd + name);
-			// 		auto t = p_anyexpr();
-			// 		if (t != type)  error(ERR_UNMATCHED_TYPES);
-			// 		emit("call string[]_$clone");
-			// 		emit("drop");
-			// 	}
-			// }
 			// string[], user_type, user_type[]
 			else if (type == "string[]" || types.count(type)) {
 				if    (type == "string[]")  emit("malloc0", "create string[]");    // special case
@@ -241,31 +226,6 @@ struct Parser : InputFile {
 					emit("drop");
 				}
 			}
-
-			// array object assignment
-			// else if (is_arraytype(type)) {
-			// 	auto& ma = setup.pushlist();
-			// 	auto& fr = teardown.pushlist();
-			// 	ma.pushtokens({ "arrmalloc", loc, name, type }); //  ma.push(tmp.back()),
-			// 	fr.pushtokens({ "free",      loc, name, type });  // arrfree?
-			// 	if    (expect("'("))  p_intexpr(ma), require("')");
-			// 	else  ma.pushint(0);
-			// }
-			// else {
-			// 	// single object assignment
-			// 	auto& ma = setup.pushlist();
-			// 	auto& fr = teardown.pushlist();
-			// 	ma.pushtokens({ "malloc",    loc, name, type }),
-			// 	fr.pushtokens({ "free",      loc, name, type });
-			// 	// string assignment
-			// 	if (type == "string" && expect("'=")) {
-			// 		auto& l = setup.pushcmdlist("strcpy");
-			// 		auto& g = l.pushlist();
-			// 		g.pushtokens({ "get_"+loc, name, type });
-			// 		p_strexpr(l);
-			// 	}
-			// }
-
 			else  error(ERR_UNDEFINED_TYPE);
 			// comma seperated list
 			if (!expect("',"))  break;
@@ -364,14 +324,6 @@ struct Parser : InputFile {
 			emit(t == "string$" ? "free" : "drop");
 			emit("drop");
 		}
-		// string[] assign (clone)
-		// else if (type == "string[]") {
-		// 	emit(getcmd);
-		// 	auto t = p_anyexpr();
-		// 	if (t != "string[]")  error(ERR_UNMATCHED_TYPES);
-		// 	emit("call string[]_$clone");
-		// 	emit("drop");
-		// }
 		// string[], user_type, user_type[] ; assign (clone)
 		else if (type == "string[]" || types.count(type)) {
 			emit(getcmd);
@@ -729,6 +681,11 @@ struct Parser : InputFile {
 			rtype = p_vp_arrpos(rtype),
 			getcmd = "memget",
 			setcmd = "memset";
+		else if (peek("'."))
+			emit( (dim.isglobal ? "get_global " : "get ") + dim.name ),
+			rtype = p_vp_objprop(rtype),
+			getcmd = "memget",
+			setcmd = "memset";
 		else
 			getcmd = (dim.isglobal ? "get_global " : "get ") + dim.name,
 			setcmd = (dim.isglobal ? "set_global " : "set ") + dim.name;
@@ -749,15 +706,30 @@ struct Parser : InputFile {
 			return globals[name];
 		// error
 		error(ERR_UNDEFINED_VARIABLE);
-		throw std::exception();
+		throw DBError();
 	}
 	
 	string p_vp_arrpos(const string& type) {
-		if (!is_arraytype(type))  error(ERR_EXPECTED_ARRAY);
+		if (!is_arraytype(type) && type != "string")  error(ERR_EXPECTED_ARRAY);
 		require("'[");
 		p_intexpr();
 		require("']");
-		return basetype(type);
+		return type == "string" ? "int" : basetype(type);
+	}
+
+	string p_vp_objprop(const string& type) {
+		if (!types.count(type))  error(ERR_EXPECTED_OBJECT);
+		require("'. @identifier");
+		auto prop = presults.at(0);
+		const auto& tmem = types[type].members;
+		for (int i = 0; i < tmem.size(); i++)
+			if (tmem[i].name == prop) {
+				emit("i " + to_string(i), usr_propsig(tmem[i]));
+				return tmem[i].type;
+			}
+		// error
+		error(ERR_UNDEFINED_PROPERTY);
+		throw DBError();
 	}
 
 	string p_expr_call() {

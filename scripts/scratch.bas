@@ -18,10 +18,15 @@ end function
 
 function main()
 	dim i
+	dim string aa = "ass"
 	call init()
 	for i = 0 to 2
 		print i, rooms[i]
 	end for
 
-	# let test.a = 100
+	let aa[1] = 66
+	let test.a = 100
+	let test.s = "fart"
+	print aa, test.a, test.s
+
 end function
