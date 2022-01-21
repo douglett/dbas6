@@ -216,6 +216,7 @@ struct ASM {
 	// --- main loop ---
 	void mainloop() {
 		int32_t t = 0, u = 0, v = 0;
+		string s;
 		pc = acc = 0;
 		// 
 		while (pc < prog.size()) {
@@ -264,7 +265,7 @@ struct ASM {
 			else if (cmd[0] == "print_str")      printf("%s", arrtostr(pop()).c_str() );
 			else if (cmd[0] == "println")        printf("%d\n", pop() );
 			else if (cmd[0] == "println_str")    printf("%s\n", arrtostr(pop()).c_str() );
-
+			else if (cmd[0] == "input")          getline(cin, s),  push( r_malloc(0) ),  r_memcat_lit(peek(), s);
 			// memory
 			// else if (cmd[0] == "malloc")         push( r_malloc(pop()) );
 			else if (cmd[0] == "malloc0")        push( r_malloc(0) );

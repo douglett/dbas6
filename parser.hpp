@@ -384,7 +384,7 @@ struct Parser : InputFile {
 			else if (peek("'let"))        p_let();
 			else if (peek("'call"))       p_call();
 			else if (peek("'print"))      p_print();
-			// else if (peek("'input"))      p_input(l);
+			else if (peek("'input"))      p_input();
 			else if (peek("'return"))     p_return();
 			else if (peek("'break"))      p_break();
 			else if (peek("'continue"))   p_continue();
@@ -455,25 +455,22 @@ struct Parser : InputFile {
 		require("endl"), nextline();
 	}
 
-	// void p_input(Node& p) {
-	// 	require("'input");
-	// 	auto& l = p.pushcmdlist("input");
-	// 	auto t = p_varpath_set(l);
-	// 	if (t != "string")  error();
-	// 	if    (expect("',"))  p_strexpr(l);  // user defined prompt
-	// 	else  l.pushliteral("> ");  // default prompt
-	// 	require("endl"), nextline();
-	// }
-
-	// void p_redim(Node& p) {
-	// 	require("'redim");
-	// 	auto& l = p.pushcmdlist("redim");
-	// 	auto t = p_varpath(l);
-	// 	if (!is_arraytype(t))  error();
-	// 	require("',");
-	// 	p_intexpr(l);
-	// 	require("endl"), nextline();
-	// }
+	void p_input() {
+		require("'input");
+		string type, getcmd, setcmd, prompt = "\"> \"";
+		if (expect("@literal")) {
+			prompt = presults.at(0);
+			require("',");
+		}
+		type = p_varpath_set(getcmd, setcmd);
+		emit(getcmd);
+		emit("print_lit " + prompt);
+		emit("input");
+		emit("memcopy");
+		emit("free", "release input string");
+		emit("drop", "drop dest");
+		require("endl"), nextline();
+	}
 
 	void p_return() {
 		dsym();
@@ -595,6 +592,16 @@ struct Parser : InputFile {
 		labelstack.pop_back();
 		flag_while--;
 	}
+
+	// void p_redim(Node& p) {
+	// 	require("'redim");
+	// 	auto& l = p.pushcmdlist("redim");
+	// 	auto t = p_varpath(l);
+	// 	if (!is_arraytype(t))  error();
+	// 	require("',");
+	// 	p_intexpr(l);
+	// 	require("endl"), nextline();
+	// }
 
 	void p_push() {
 		dsym();
