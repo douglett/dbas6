@@ -104,6 +104,7 @@ struct Parser : InputFile {
 
 		for (const auto& _t : types) {
 			auto& t = _t.second;
+			string label;
 
 			// type constructor
 			emlabel(t.name + "_$construct");
@@ -131,6 +132,7 @@ struct Parser : InputFile {
 			em.comment("clone (dest, src) -> dest");
 			emit("let src");
 			emit("set src");
+			emit("let tmp");
 			emit("call " + t.name + "_$deconstruct");
 			for (int i = 0; i < t.members.size(); i++) {
 				auto& d = t.members[i];
@@ -146,13 +148,45 @@ struct Parser : InputFile {
 					emit("drop"),     // drop src member
 					emit("mempush");  // push dest member
 				else
-					emit("stash"),
-					emit("malloc0"),
-					emit("unstash"),
-					emit(d.type + "_$clone"),
-					emit("drop"),     // drop src member
+					emit("set tmp"),
+					emit("call " + d.type + "_$construct"),
+					emit("get tmp"),
+					emit("call " + d.type + "_$clone"),
 					emit("mempush");  // push dest member
 			}
+			emit("ret");
+
+			// type[] constructor
+			emlabel(t.name + "[]_$construct");
+			em.comment("construct () -> dest[]");
+			emit("malloc0");
+			emit("ret");
+
+			// type[] deconstructor
+			label = t.name + "[]_$deconstruct";
+			emlabel(label);
+			em.comment("deconstruct (dest[]) -> dest[]");
+			emit("dup", "loop condition");
+			emit("len");
+			emit("i 0");
+			emit("eq");
+			emit("jumpif " + label + "_loopend");
+			emit("mempop", "destroy item");
+			emit("call " + t.name + "_$deconstruct");
+			emit("free");
+			emit("jump " + label);
+			emlabel(label + "_loopend");
+			emit("ret");
+
+			// type[] push
+			emlabel(t.name + "[]_$push");
+			em.comment("push (dest[], src) -> dest[]");
+			emit("let src");
+			emit("set src");
+			emit("call " + t.name + "_$construct");  // TODO: inefficient
+			emit("get src");
+			emit("call " + t.name + "_$clone");
+			emit("mempush");
 			emit("ret");
 		}
 	}
@@ -206,9 +240,8 @@ struct Parser : InputFile {
 				}
 			}
 			// string[], user_type, user_type[]
-			else if (type == "string[]" || types.count(type)) {
-				if    (type == "string[]")  emit("malloc0", "create string[]");    // special case
-				else  emit("call " + type + "_$construct", "create new " + type);  // general case
+			else if (type == "string[]" || types.count(type) || (is_arraytype(type) && types.count(basetype(type)))) {
+				emit("call " + type + "_$construct", "create new " + type);  // construct new type / array
 				emit(set_cmd + name);
 				em.emitsub(get_cmd + name);
 				em.emitsub("call " + type + "_$deconstruct");
@@ -512,6 +545,8 @@ struct Parser : InputFile {
 			emit("mempush");
 		else if (t == "string[]" && (u == "string" || u == "int[]"))
 			emit("call string[]_$push");
+		else if (is_arraytype(t) && basetype(t) == u)
+			emit("call " + t + "_$push");
 		else  error(ERR_UNMATCHED_TYPES);
 		// drop array ptr
 		emit("drop");
@@ -800,10 +835,18 @@ struct Parser : InputFile {
 	void std_stringarray() {
 		string label;
 
+		// constructor () -> dest  (for completeness)
+		label = "string[]_$construct";
+		emlabel(label);
+		em.comment("construct () -> dest");
+		emit("malloc0");
+		emit("ret");
+
 		// deconstructor (dest) -> dest
 		label = "string[]_$deconstruct";
 		emlabel(label);
 		em.comment("deconstruct (dest) -> dest");  // function signiature
+		emit("dup");
 		emit("len");
 		emit("i 0");
 		emit("eq");
@@ -841,7 +884,6 @@ struct Parser : InputFile {
 		emit("get src");
 		emit("len");
 		emit("set src_len");
-		emit("drop");
 		// deconstruct dest
 		emit("get dest", "deconstruct dest");
 		emit("call string[]_$deconstruct");

@@ -271,6 +271,7 @@ struct ASM {
 			else if (cmd[0] == "free")           r_free(pop());
 			else if (cmd[0] == "memget")         u = pop(),  t = pop(),  push( mem(t, u) );
 			else if (cmd[0] == "memset")         v = pop(),  u = pop(),  t = pop(),  mem(t, u) = v;
+			else if (cmd[0] == "len")            t = desc(pop()).size(),  push(t);
 
 			// else if (cmd[0] == "get.i")       var(cmd[1]) =  mem( var(cmd[2]), stoi(cmd[3]) );
 			// else if (cmd[0] == "get.v")       var(cmd[1]) =  mem( var(cmd[2]), var(cmd[3]) );
@@ -280,7 +281,7 @@ struct ASM {
 			// else if (cmd[0] == "put.vv")      mem( var(cmd[1]), var(cmd[2])  ) =  var(cmd[3]);
 			
 			// arrays
-			else if (cmd[0] == "len")            t = desc(peek()).size(),  push(t);
+			// else if (cmd[0] == "len")            t = desc(peek()).size(),  push(t);
 			else if (cmd[0] == "memcopy")        r_memcopy( peek(1), peek() );
 			// else if (cmd[0] == "memmove")        t = pop(),  r_memcopy( peek(), t ),  r_free(t);
 			else if (cmd[0] == "memcat")         r_memcat( peek(1), peek() );
