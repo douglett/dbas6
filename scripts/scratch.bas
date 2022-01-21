@@ -2,31 +2,18 @@ type test_t
 	dim a
 	dim string s
 end type
-# type test2_t
-# 	dim test_t test
-# end type
+type test2_t
+	dim test_t test
+	dim string ss
+end type
 
-
-dim string[] rooms
 dim test_t   test
-
-function init()
-	push rooms, "entrance"
-	push rooms, "a cave"
-	push rooms, "a lake"
-end function
+dim test2_t  test2
 
 function main()
-	dim i
-	dim string aa = "ass"
-	call init()
-	for i = 0 to 2
-		print i, rooms[i]
-	end for
+	let test.a = 123
+	let test.s = "hello"
+	let test2.ss = "fart"
 
-	let aa[1] = 66
-	let test.a = 100
-	let test.s = "fart"
-	print aa, test.a, test.s
-
+	print test.a, test.s, test2.ss
 end function

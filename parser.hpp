@@ -112,7 +112,7 @@ struct Parser : InputFile {
 			for (auto& d : t.members)
 				if      (d.type == "int")     emit("i 0",     usr_propsig(d)),  emit("mempush");
 				else if (d.type == "string")  emit("malloc0", usr_propsig(d)),  emit("mempush");
-				else    emit(d.type + "_$construct", usr_propsig(d)),  emit("mempush");
+				else    emit("call " + d.type + "_$construct", usr_propsig(d)),  emit("mempush");
 			emit("ret");
 
 			// type deconstructor
@@ -122,7 +122,7 @@ struct Parser : InputFile {
 				auto& d = t.members[i];
 				if      (d.type == "int")     emit("mempop", usr_propsig(d)),  emit("drop");
 				else if (d.type == "string")  emit("mempop", usr_propsig(d)),  emit("free");
-				else    emit("mempop", usr_propsig(d)),  emit(d.type + "_$deconstruct"),  emit("free");
+				else    emit("mempop", usr_propsig(d)),  emit("call " + d.type + "_$deconstruct"),  emit("free");
 			}
 			emit("ret");
 
