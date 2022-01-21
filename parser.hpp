@@ -675,20 +675,24 @@ struct Parser : InputFile {
 		// base
 		auto& dim = p_vp_base();
 		string rtype = dim.type;
-		// array type
-		if (peek("'["))
-			emit( (dim.isglobal ? "get_global " : "get ") + dim.name ),
-			rtype = p_vp_arrpos(rtype),
-			getcmd = "memget",
-			setcmd = "memset";
-		else if (peek("'."))
-			emit( (dim.isglobal ? "get_global " : "get ") + dim.name ),
-			rtype = p_vp_objprop(rtype),
-			getcmd = "memget",
-			setcmd = "memset";
-		else
+		int chain_depth = 0;
+		// vpath chain loop
+		while (peek("'[") || peek("'.")) {
+			// emit last memory-get immediately
+			if      (chain_depth == 0)  emit( (dim.isglobal ? "get_global " : "get ") + dim.name );
+			else    emit("memget");
+			// parse the next item in the list
+			if      (peek("'["))  rtype = p_vp_arrpos(rtype);
+			else if (peek("'."))  rtype = p_vp_objprop(rtype);
+			chain_depth++;
+		}
+		// set the correct get/set commands
+		if (chain_depth == 0)
 			getcmd = (dim.isglobal ? "get_global " : "get ") + dim.name,
 			setcmd = (dim.isglobal ? "set_global " : "set ") + dim.name;
+		else
+			getcmd = "memget",
+			setcmd = "memset";
 		// return
 		return rtype;
 	}

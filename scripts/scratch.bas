@@ -14,6 +14,7 @@ function main()
 	let test.a = 123
 	let test.s = "hello"
 	let test2.ss = "fart"
+	let test2.test.a = 1234
 
-	print test.a, test.s, test2.ss
+	print test.a, test.s, test2.ss, test2.test.a
 end function
