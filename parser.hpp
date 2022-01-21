@@ -84,9 +84,10 @@ struct Parser : InputFile {
 		// type members
 		while (!eof()) {
 			string name, type;
-			if      (expect("endl"))  { nextline();  continue; }
-			else if (expect("'dim @identifier @identifier endl"))  name = presults.at(1), type = presults.at(0);
-			else if (expect("'dim @identifier endl"))  name = presults.at(0), type = "int";
+			if      (expect("endl"))                                      { nextline();  continue; }
+			else if (expect("'dim @identifier @identifier endl"))         name = presults.at(1), type = presults.at(0);
+			else if (expect("'dim @identifier '[ '] @identifier endl"))   name = presults.at(1), type = presults.at(0) + "[]";
+			else if (expect("'dim @identifier endl"))                     name = presults.at(0), type = "int";
 			else    break;
 			typecheck(type), namecollision(name);
 			types.at(ctypename).members.push_back({ name, type });  // save type member
@@ -956,34 +957,28 @@ struct Parser : InputFile {
 		label = "string[]_$clonehelper";
 		emlabel(label);
 		em.comment("clonehelper (dest, src) -> dest");  // function signiature
-		// get arguments
-		emit("let src", "get arguments");
+		emit("let src", "get arguments");  // get arguments
 		emit("set src");
 		emit("let i");
-		// loop each item in src
-		emlabel(label+"_loopstart");
+		emlabel(label+"_loopstart");  // loop each item in src
 		emit("get i");
 		emit("get src");
 		emit("len");
 		emit("lt");
 		emit("jumpifn " + label + "_loopend");
-		// clone string
-		emit("get dest", "clone string");
-		emit("malloc0");
+		emit("malloc0", "clone string");  // clone string
 		emit("get src");
 		emit("get i");
 		emit("memget");
 		emit("memcat");
 		emit("drop");
 		emit("mempush");
-		// next i
-		emit("get i", "next i");
+		emit("get i", "next i");  // next i
 		emit("i 1");
 		emit("add");
 		emit("set i");
 		emit("jump " + label + "_loopstart");
-		// return
-		emlabel(label + "_loopend");
+		emlabel(label + "_loopend");  // end loop
 		emit("ret");
 	}
 
