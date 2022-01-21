@@ -129,13 +129,9 @@ struct Parser : InputFile {
 			// type clone
 			emlabel(t.name + "_$clone");
 			em.comment("clone (dest, src) -> dest");
-			emit("let dest");
-			emit("set dest");
 			emit("let src");
 			emit("set src");
-			emit("get_dest", "deconstruct dest");
 			emit("call " + t.name + "_$deconstruct");
-			emit("drop");
 			for (int i = 0; i < t.members.size(); i++) {
 				auto& d = t.members[i];
 				emit("get src", usr_propsig(d));
@@ -157,7 +153,6 @@ struct Parser : InputFile {
 					emit("drop"),     // drop src member
 					emit("mempush");  // push dest member
 			}
-			emit("get dest");
 			emit("ret");
 		}
 	}

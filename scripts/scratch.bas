@@ -17,4 +17,7 @@ function main()
 	let test2.test.a = 1234
 
 	print test.a, test.s, test2.ss, test2.test.a
+
+	let test2.test = test
+	print test2.ss, test2.test.a
 end function
