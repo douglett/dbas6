@@ -127,13 +127,31 @@ struct Parser : InputFile {
 			}
 			emit("ret");
 
-			// type clone
+			// type clone (new)
 			emlabel(t.name + "_$clone");
-			em.comment("clone (dest, src) -> dest");
+			em.comment("clone (src) -> dest");
+			emit("stash");
+			emit("malloc0");
+			emit("unstash");
+			emit("call " + t.name + "_$clonehelper");
+			emit("ret");
+
+			// type clone (replace)
+			emlabel(t.name + "_$cloneto");
+			em.comment("cloneto (dest, src) -> dest");
+			emit("let src");
+			emit("set src");
+			emit("call " + t.name + "_$deconstruct", "deconstruct dest");
+			emit("get src");
+			emit("call " + t.name + "_$clonehelper");
+			emit("ret");
+
+			// type clone (helper)
+			emlabel(t.name + "_$clonehelper");
+			em.comment("clonehelper (dest0, src) -> dest");
 			emit("let src");
 			emit("set src");
 			emit("let tmp");
-			emit("call " + t.name + "_$deconstruct");
 			for (int i = 0; i < t.members.size(); i++) {
 				auto& d = t.members[i];
 				emit("get src", usr_propsig(d));
@@ -148,9 +166,6 @@ struct Parser : InputFile {
 					emit("drop"),     // drop src member
 					emit("mempush");  // push dest member
 				else
-					emit("set tmp"),
-					emit("call " + d.type + "_$construct"),
-					emit("get tmp"),
 					emit("call " + d.type + "_$clone"),
 					emit("mempush");  // push dest member
 			}
@@ -181,12 +196,61 @@ struct Parser : InputFile {
 			// type[] push
 			emlabel(t.name + "[]_$push");
 			em.comment("push (dest[], src) -> dest[]");
-			emit("let src");
-			emit("set src");
-			emit("call " + t.name + "_$construct");  // TODO: inefficient
-			emit("get src");
 			emit("call " + t.name + "_$clone");
 			emit("mempush");
+			emit("ret");
+			
+			// type[] popdel (pop and delete)
+			emlabel(t.name + "[]_$popdel");
+			em.comment("push (dest[]) -> dest[]");
+			emit("mempop");
+			emit("call " + t.name + "_$deconstruct");
+			emit("free");
+			emit("ret");
+
+			// type[] clone
+			emlabel(t.name + "[]_$clone");
+			em.comment("construct (src[]) -> dest[]");
+			emit("stash");
+			emit("malloc0");
+			emit("unstash");
+			emit("call " + t.name + "[]_$clonehelper");
+			emit("ret");
+
+			// type[] cloneto
+			emlabel(t.name + "[]_$cloneto");
+			em.comment("construct (dest[], src[]) -> dest[]");
+			emit("let src");
+			emit("set src");
+			emit("call " + t.name + "[]_$deconstruct");
+			emit("get src");
+			emit("call " + t.name + "[]_$clonehelper");
+			emit("ret");
+
+			// type[] clonehelper
+			label = t.name + "[]_$clonehelper";
+			emlabel(label);
+			em.comment("construct (dest0, src[]) -> dest[]");
+			emit("let src");
+			emit("set src");
+			emit("let i");
+			emlabel(label + "_loopstart");  // loop start
+			emit("get i", "loop condition");  // loop condition
+			emit("get src");
+			emit("len");
+			emit("lt");
+			emit("jumpifn " + label + "_loopend");
+			emit("get src", "clone src property and push");  // do clone
+			emit("get i");
+			emit("memget");
+			emit("call " + t.name + "_$clone");
+			emit("mempush");
+			emit("get i", "next i");  // next i
+			emit("i 1");
+			emit("add");
+			emit("set i");
+			emit("jump " + label + "_loopstart");
+			emlabel(label + "_loopend");  // loop end
 			emit("ret");
 		}
 	}
@@ -250,7 +314,7 @@ struct Parser : InputFile {
 					emit(get_cmd + name);
 					auto t = p_anyexpr();
 					if (t != type)  error(ERR_UNMATCHED_TYPES);
-					emit("call " + type + "_$clone");
+					emit("call " + type + "_$cloneto");
 					emit("drop");
 				}
 			}
@@ -353,11 +417,11 @@ struct Parser : InputFile {
 			emit("drop");
 		}
 		// string[], user_type, user_type[] ; assign (clone)
-		else if (type == "string[]" || types.count(type)) {
+		else if (type == "string[]" || types.count(type) || (is_arraytype(type) && types.count(basetype(type)))) {
 			emit(getcmd);
 			auto t = p_anyexpr();
 			if (t != type)  error(ERR_UNMATCHED_TYPES);
-			emit("call " + type + "_$clone");
+			emit("call " + type + "_$cloneto");
 			emit("drop");
 		}
 		// object assign (clone)
@@ -563,10 +627,8 @@ struct Parser : InputFile {
 		else if (t == "string[]")
 			emit("mempop"),
 			emit("free");
-		// else if (types.count(t))
-		// 	emit("mempop"),
-		// 	emit(t + "_$deconstruct"),
-		// 	emit("free");
+		else if (types.count(basetype(t)))
+			emit("call " + t + "_$popdel");
 		else  error(ERR_UNEXPECTED_TYPE);
 		// drop array ptr
 		emit("drop");
@@ -868,30 +930,41 @@ struct Parser : InputFile {
 		emit("drop");
 		emit("mempush");
 		emit("ret");
-
-		// clone (dest, src) -> dest
+		
+		// clone (src) -> dest
 		label = "string[]_$clone";
 		emlabel(label);
-		em.comment("clone (dest, src) -> dest");  // function signiature
+		em.comment("clone (src) -> dest");  // function signiature
+		emit("stash");
+		emit("malloc0");
+		emit("unstash");
+		emit("call string[]_$clonehelper");
+		emit("ret");
+
+		// cloneto (dest, src) -> dest
+		label = "string[]_$cloneto";
+		emlabel(label);
+		em.comment("cloneto (dest, src) -> dest");  // function signiature
+		emit("let src");
+		emit("set src");
+		emit("call string[]_$deconstruct", "deconstruct dest");
+		emit("get src");
+		emit("call string[]_$clonehelper");
+		emit("ret");
+
+		// clonehelper (dest0, src) -> dest
+		label = "string[]_$clonehelper";
+		emlabel(label);
+		em.comment("clonehelper (dest, src) -> dest");  // function signiature
 		// get arguments
 		emit("let src", "get arguments");
 		emit("set src");
-		emit("let dest");
-		emit("set dest");
-		// iteration locals
-		emit("let i", "iteration locals");
-		emit("let src_len");
-		emit("get src");
-		emit("len");
-		emit("set src_len");
-		// deconstruct dest
-		emit("get dest", "deconstruct dest");
-		emit("call string[]_$deconstruct");
-		emit("drop");
+		emit("let i");
 		// loop each item in src
 		emlabel(label+"_loopstart");
 		emit("get i");
-		emit("get src_len");
+		emit("get src");
+		emit("len");
 		emit("lt");
 		emit("jumpifn " + label + "_loopend");
 		// clone string
@@ -903,7 +976,6 @@ struct Parser : InputFile {
 		emit("memcat");
 		emit("drop");
 		emit("mempush");
-		emit("drop");
 		// next i
 		emit("get i", "next i");
 		emit("i 1");
@@ -912,7 +984,6 @@ struct Parser : InputFile {
 		emit("jump " + label + "_loopstart");
 		// return
 		emlabel(label + "_loopend");
-		emit("get dest");
 		emit("ret");
 	}
 

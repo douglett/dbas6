@@ -11,8 +11,12 @@ dim test_t     test
 dim test_t[]   arr
 dim test2_t    test2
 dim test2_t[]  arr2
+dim string[] ss
 
 function main()
+	dim string s
+	dim test_t[] tt
+
 	let test.a = 1
 	let test.s = "fart"
 	
@@ -29,4 +33,13 @@ function main()
 	let arr2[1].ss = "poopy"
 	let arr2[1].test.s = "poofart"
 	print "here3", arr2[0].ss, arr2[0].test.s, arr2[1].ss, arr2[1].test.s
+	pop arr2
+
+	let tt = arr
+	print "herearrrrrr", tt[0].a, tt[0].s
+
+	push ss, "arse"
+	let ss[0] = s
+	print ss[0]
+	pop ss
 end function
