@@ -20,6 +20,7 @@ const vector<string> BASIC_KEYWORDS = {
 	"int", "string",
 	"type", "dim", "redim", "function", "end",
 	"if", "while", "break", "continue",
+	"push", "pop", "len",  // stdlib?
 };
 
 
@@ -395,6 +396,7 @@ struct Parser : InputFile {
 			// else if (peek("'redim"))      p_redim(l);
 			else if (peek("'push"))       p_push();
 			else if (peek("'pop"))        p_pop();
+			else if (peek("'len"))        p_len();
 			else    error(ERR_UNKNOWN_COMMAND);
 	}
 
@@ -609,7 +611,6 @@ struct Parser : InputFile {
 		auto t = p_varpath_get();
 		require("',");
 		auto u = p_anyexpr();
-		require("endl");
 		if (!is_arraytype(t) && t != "string")  error(ERR_UNEXPECTED_TYPE);
 		if ((t == "string" || t == "int[]") && u == "int")
 			emit("mempush");
@@ -622,13 +623,13 @@ struct Parser : InputFile {
 		else  error(ERR_UNMATCHED_TYPES);
 		// drop array ptr
 		emit("drop");
+		require("endl"), nextline();
 	}
 
 	void p_pop() {
 		dsym();
 		require("'pop");
 		auto t = p_varpath_get();
-		require("endl");
 		if (t == "string" || t == "int[]")
 			emit("mempop"),
 			emit("drop");
@@ -640,6 +641,22 @@ struct Parser : InputFile {
 		else  error(ERR_UNEXPECTED_TYPE);
 		// drop array ptr
 		emit("drop");
+		require("endl"), nextline();
+	}
+
+	void p_len() {
+		dsym();
+		require("'len");
+		string getcmd, setcmd;
+		auto t = p_varpath_get();
+		if (t != "string" && !is_arraytype(t))  error(ERR_EXPECTED_ARRAY);
+		emit("len");
+		require("',");
+		auto u = p_varpath_set(getcmd, setcmd);
+		if (u != "int")  error(ERR_EXPECTED_INT);
+		if (setcmd == "memset")  emit("swap");  // special case
+		emit(setcmd);
+		require("endl"), nextline();
 	}
 
 

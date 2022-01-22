@@ -61,13 +61,15 @@ end function
 
 function split(string str, string[] vs)
 	dim i
+	len str, i
 	# for i = 0 to 
 end function
 
 
 function mainloop()
-	dim do_look = 1
+	dim do_look = 1, t
 	dim string inp
+	dim string[] cmd
 
 	while 1
 		# show room
@@ -82,6 +84,9 @@ function mainloop()
 		end if
 		# get input
 		input inp
+		len inp, t
+		print t
+		# call split(inp, cmd)
 		if inp == ""
 			continue
 		end if

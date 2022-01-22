@@ -249,6 +249,7 @@ struct ASM {
 			// stack
 			else if (cmd[0] == "drop")           pop();
 			else if (cmd[0] == "dup")            t = peek(),  push(t);
+			else if (cmd[0] == "swap")           t = pop(),  u = pop(),  push(t),  push(u);
 			else if (cmd[0] == "stash")          acc = pop();
 			else if (cmd[0] == "cpstash")        acc = peek();
 			else if (cmd[0] == "unstash")        push(acc);
