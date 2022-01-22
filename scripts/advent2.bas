@@ -140,11 +140,14 @@ function getexits(string s)
 	# find exits
 	if r.exit_n != ""
 		push exits, "n"
-	else if r.exit_s != ""
+	end if
+	if r.exit_s != ""
 		push exits, "s"
-	else if r.exit_e != ""
+	end if
+	if r.exit_e != ""
 		push exits, "e"
-	else if r.exit_w != ""
+	end if
+	if r.exit_w != ""
 		push exits, "w"
 	end if
 	# join
@@ -179,7 +182,7 @@ function mainloop()
 		# get input
 		input inp
 		let l = split(inp, cmd)
-		print "commands:", l
+		# print "commands:", l
 		if l == 0
 			continue
 		end if
@@ -198,6 +201,16 @@ function mainloop()
 			let do_look = move(1)
 		else if cmd[0] == "w" || cmd[0] == "west"
 			let do_look = move(3)
+		else if cmd[0] == rooms[croom].action1
+			print "You try to use the " rooms[croom].action1 "."
+			print rooms[croom].takeaction1
+			if cmd[0] == "torch"
+				let croom = 3  # hard coded. blah 
+			else if cmd[0] == "sword"
+				return 0
+			else if cmd[0] == "rock"
+				let rooms[croom].exit_e = "exit"
+			end if
 		else
 			print "You flail around uselessly."
 		end if

@@ -1,6 +1,8 @@
+dim string t = "ass"
+
 function main()
 	dim i
-	for i = 0 to 10
+	for t[0] = 0 to 10
 		print i
 	end for
 end function
