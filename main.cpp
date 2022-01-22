@@ -10,7 +10,7 @@ int main() {
 	// printf("---\n");
 
 	Parser p;
-	p.load("scripts/scratch.bas");
+	p.load("scripts/advent2.bas");
 	// p.load("scripts/string.bas");
 	p.p_program();
 	p.em.outputfile("bin/output.asm");
