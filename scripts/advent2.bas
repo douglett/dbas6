@@ -59,15 +59,75 @@ function buildrooms()
 end function
 
 
-function split(string str, string[] vs)
+function strlen(string str)
 	dim i
 	len str, i
-	# for i = 0 to 
+	return i
+end function
+
+
+function split(string str, string[] arr)
+	dim i, res
+	dim string s
+	dim string[] clear
+	let arr = clear  # clear array
+	# loop string
+	for i = 0 to strlen(str) - 1
+		# if word break, push previous word
+		if str[i] == 32 || str[i] == 9
+			if strlen(s)
+				push arr, s
+				let s = ""
+			end if
+		# increment previous word
+		else
+			push s, str[i]
+		end if
+	end for
+	# add last word if needed
+	if strlen(s)
+		push arr, s
+	end if
+	# return items in arr
+	len arr, res
+	return res
+end function
+
+
+function move(int dir)
+	dim i, roomslen
+	dim string target, dirname
+	# set up directions
+	if dir == 0
+		let target = rooms[croom].exit_n
+		let dirname = "north"
+	else if dir == 1
+		let target = rooms[croom].exit_e
+		let dirname = "east"
+	else if dir == 2
+		let target = rooms[croom].exit_s
+		let dirname = "south"
+	else if dir == 3
+		let target = rooms[croom].exit_w
+		let dirname = "west"
+	end if
+	# move
+	len rooms, roomslen
+	for i = 0 to roomslen - 1
+		if rooms[i].name == target
+			let croom = i
+			print "You go " dirname "."
+			return 1
+		end if
+	end for
+	# could not move
+	print "You can't go " dirname "."
+	return 0
 end function
 
 
 function mainloop()
-	dim do_look = 1, t
+	dim l, do_look = 1
 	dim string inp
 	dim string[] cmd
 
@@ -84,16 +144,26 @@ function mainloop()
 		end if
 		# get input
 		input inp
-		len inp, t
-		print t
-		# call split(inp, cmd)
-		if inp == ""
+		let l = split(inp, cmd)
+		print "commands:", l
+		if l == 0
 			continue
 		end if
 		# actions
-		if inp == "q" || inp == "quit"
+		if cmd[0] == "q" || cmd[0] == "quit"
 			print "You lie down and rot."
 			return
+		else if cmd[0] == "l" || cmd[0] == "look"
+			print "You look around you."
+			let do_look = 1
+		else if cmd[0] == "n" || cmd[0] == "north"
+			let do_look = move(0)
+		else if cmd[0] == "s" || cmd[0] == "south"
+			let do_look = move(2)
+		else if cmd[0] == "e" || cmd[0] == "east"
+			let do_look = move(1)
+		else if cmd[0] == "w" || cmd[0] == "west"
+			let do_look = move(3)
 		else
 			print "You flail around uselessly."
 		end if

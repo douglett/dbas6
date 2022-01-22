@@ -654,7 +654,7 @@ struct Parser : InputFile {
 		require("',");
 		auto u = p_varpath_set(getcmd, setcmd);
 		if (u != "int")  error(ERR_EXPECTED_INT);
-		if (setcmd == "memset")  emit("swap");  // special case
+		if (setcmd == "memset")  emit("swap");  // special case (TODO: could this cause issues?)
 		emit(setcmd);
 		require("endl"), nextline();
 	}
@@ -890,8 +890,8 @@ struct Parser : InputFile {
 			}
 			else if (def.type != t)
 				error(ERR_ARGUMENT_TYPE_MISMATCH);    // argument type checking
-			if (!expect("',"))  break;
 			argc++;  // increment argument count
+			if (!expect("',"))  break;
 		}
 		require("')");
 		if (argc != functions.at(fname).args.size())  error(ERR_ARGUMENT_COUNT_MISMATCH);
