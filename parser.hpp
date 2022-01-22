@@ -564,6 +564,7 @@ struct Parser : InputFile {
 	}
 
 	void p_for() {
+		// TODO: this is fucked, because variable paths aren't saved
 		require("'for");
 		flag_while++;  // lets say this is a while loop of sorts
 		string name, label = "$for_" + to_string(++flag_ctrlcount) + "_";

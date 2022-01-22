@@ -226,13 +226,13 @@ struct ASM {
 			else if (cmd[0].front() == ';')      ;  // comment line
 			else if (cmd[0].back()  == ':')      ;  // label
 			// variables
-			else if (cmd[0] == "let")            frame()[cmd[1]] = 0;
-			else if (cmd[0] == "let_global")     globals[cmd[1]] = 0;
-			else if (cmd[0] == "get")            push( var(cmd[1]) );
-			else if (cmd[0] == "get_global")     push( var_global(cmd[1]) );
-			else if (cmd[0] == "set")            var(cmd[1]) = pop();
-			else if (cmd[0] == "set_global")     var_global(cmd[1]) = pop();
-			else if (cmd[0] == "i")              push( stoi(cmd[1]) );
+			else if (cmd[0] == "let")            frame()[cmd.at(1)] = 0;
+			else if (cmd[0] == "let_global")     globals[cmd.at(1)] = 0;
+			else if (cmd[0] == "get")            push( var(cmd.at(1)) );
+			else if (cmd[0] == "get_global")     push( var_global(cmd.at(1)) );
+			else if (cmd[0] == "set")            var(cmd.at(1)) = pop();
+			else if (cmd[0] == "set_global")     var_global(cmd.at(1)) = pop();
+			else if (cmd[0] == "i")              push( stoi(cmd.at(1)) );
 			// basic
 			else if (cmd[0] == "add")            t = pop(),  peek() += t;
 			else if (cmd[0] == "sub")            t = pop(),  peek() -= t;
@@ -254,15 +254,15 @@ struct ASM {
 			else if (cmd[0] == "cpstash")        acc = peek();
 			else if (cmd[0] == "unstash")        push(acc);
 			// control
-			else if (cmd[0] == "jump")           pc = findlabel(cmd[1]);
-			else if (cmd[0] == "jumpif")         pc = pop() ? findlabel(cmd[1]) : pc;
-			else if (cmd[0] == "jumpifn")        pc = pop() ? pc : findlabel(cmd[1]);
-			else if (cmd[0] == "call")           call(cmd[1]);
+			else if (cmd[0] == "jump")           pc = findlabel(cmd.at(1));
+			else if (cmd[0] == "jumpif")         pc = pop() ? findlabel(cmd.at(1)) : pc;
+			else if (cmd[0] == "jumpifn")        pc = pop() ? pc : findlabel(cmd.at(1));
+			else if (cmd[0] == "call")           call(cmd.at(1));
 			else if (cmd[0] == "ret")            ret();
 			else if (cmd[0] == "halt")           break;
 			// printing
 			else if (cmd[0] == "print")          printf("%d", pop() );
-			else if (cmd[0] == "print_lit")      printf("%s", strescape(cmd[1]).c_str() );
+			else if (cmd[0] == "print_lit")      printf("%s", strescape(cmd.at(1)).c_str() );
 			else if (cmd[0] == "print_str")      printf("%s", arrtostr(pop()).c_str() );
 			else if (cmd[0] == "println")        printf("%d\n", pop() );
 			else if (cmd[0] == "println_str")    printf("%s\n", arrtostr(pop()).c_str() );
@@ -275,33 +275,33 @@ struct ASM {
 			else if (cmd[0] == "memset")         v = pop(),  u = pop(),  t = pop(),  mem(t, u) = v;
 			else if (cmd[0] == "len")            t = desc(pop()).size(),  push(t);
 
-			// else if (cmd[0] == "get.i")       var(cmd[1]) =  mem( var(cmd[2]), stoi(cmd[3]) );
-			// else if (cmd[0] == "get.v")       var(cmd[1]) =  mem( var(cmd[2]), var(cmd[3]) );
-			// else if (cmd[0] == "put.ii")      mem( var(cmd[1]), stoi(cmd[2]) ) =  stoi(cmd[3]);
-			// else if (cmd[0] == "put.iv")      mem( var(cmd[1]), stoi(cmd[2]) ) =  var(cmd[3]);
-			// else if (cmd[0] == "put.vi")      mem( var(cmd[1]), var(cmd[2])  ) =  stoi(cmd[3]);
-			// else if (cmd[0] == "put.vv")      mem( var(cmd[1]), var(cmd[2])  ) =  var(cmd[3]);
+			// else if (cmd[0] == "get.i")       var(cmd.at(1)) =  mem( var(cmd[2]), stoi(cmd[3]) );
+			// else if (cmd[0] == "get.v")       var(cmd.at(1)) =  mem( var(cmd[2]), var(cmd[3]) );
+			// else if (cmd[0] == "put.ii")      mem( var(cmd.at(1)), stoi(cmd[2]) ) =  stoi(cmd[3]);
+			// else if (cmd[0] == "put.iv")      mem( var(cmd.at(1)), stoi(cmd[2]) ) =  var(cmd[3]);
+			// else if (cmd[0] == "put.vi")      mem( var(cmd.at(1)), var(cmd[2])  ) =  stoi(cmd[3]);
+			// else if (cmd[0] == "put.vv")      mem( var(cmd.at(1)), var(cmd[2])  ) =  var(cmd[3]);
 			
 			// arrays
 			// else if (cmd[0] == "len")            t = desc(peek()).size(),  push(t);
 			else if (cmd[0] == "memcopy")        r_memcopy( peek(1), peek() );
 			// else if (cmd[0] == "memmove")        t = pop(),  r_memcopy( peek(), t ),  r_free(t);
 			else if (cmd[0] == "memcat")         r_memcat( peek(1), peek() );
-			else if (cmd[0] == "memcat_lit")     r_memcat_lit( peek(), strescape(cmd[1]) );
+			else if (cmd[0] == "memcat_lit")     r_memcat_lit( peek(), strescape(cmd.at(1)) );
 			else if (cmd[0] == "mempush")        t = pop(),  r_mempush( peek(), t );
 			else if (cmd[0] == "mempop")         t = r_mempop(peek()),  push(t);
 			else if (cmd[0] == "streq")          t = r_strcomp( peek(1), peek() ),  push(t);
 			else if (cmd[0] == "strneq")         t = r_strcomp( peek(1), peek() ),  push(!t);
 			
-			// else if (cmd[0] == "len")         t = desc( var(cmd[2]) ).size(),  var(cmd[1]) = t;
-			// else if (cmd[0] == "copy.v")      t = var(cmd[2]),        r_memcopy( var(cmd[1]), t );
-			// else if (cmd[0] == "copy.s")      s = strescape(cmd[2]),  r_memcopy( var(cmd[1]), s );
-			// else if (cmd[0] == "cat.v")       t = var(cmd[2]),        r_concat( var(cmd[1]), t );
-			// else if (cmd[0] == "cat.s")       s = strescape(cmd[2]),  r_concat( var(cmd[1]), s );
-			// else if (cmd[0] == "slice.ii")    r_slice( var(cmd[1]), var(cmd[2]), stoi(cmd[3]), stoi(cmd[4]) );
-			// else if (cmd[0] == "slice.iv")    r_slice( var(cmd[1]), var(cmd[2]), stoi(cmd[3]), var(cmd[4]) );
-			// else if (cmd[0] == "slice.vi")    r_slice( var(cmd[1]), var(cmd[2]), var(cmd[3]),  stoi(cmd[4]) );
-			// else if (cmd[0] == "slice.vv")    r_slice( var(cmd[1]), var(cmd[2]), var(cmd[3]),  var(cmd[4]) );
+			// else if (cmd[0] == "len")         t = desc( var(cmd[2]) ).size(),  var(cmd.at(1)) = t;
+			// else if (cmd[0] == "copy.v")      t = var(cmd[2]),        r_memcopy( var(cmd.at(1)), t );
+			// else if (cmd[0] == "copy.s")      s = strescape(cmd[2]),  r_memcopy( var(cmd.at(1)), s );
+			// else if (cmd[0] == "cat.v")       t = var(cmd[2]),        r_concat( var(cmd.at(1)), t );
+			// else if (cmd[0] == "cat.s")       s = strescape(cmd[2]),  r_concat( var(cmd.at(1)), s );
+			// else if (cmd[0] == "slice.ii")    r_slice( var(cmd.at(1)), var(cmd[2]), stoi(cmd[3]), stoi(cmd[4]) );
+			// else if (cmd[0] == "slice.iv")    r_slice( var(cmd.at(1)), var(cmd[2]), stoi(cmd[3]), var(cmd[4]) );
+			// else if (cmd[0] == "slice.vi")    r_slice( var(cmd.at(1)), var(cmd[2]), var(cmd[3]),  stoi(cmd[4]) );
+			// else if (cmd[0] == "slice.vv")    r_slice( var(cmd.at(1)), var(cmd[2]), var(cmd[3]),  var(cmd[4]) );
 			// error
 			else    throw DBRunError("unknown command: " + cmd[0], pc);
 			// next
