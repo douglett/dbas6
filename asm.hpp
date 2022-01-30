@@ -117,24 +117,24 @@ struct ASM {
 
 	// --- memory access ---
 	int32_t& var(const string& id) {
-		try                    { return frame().at(id); }
-		catch (out_of_range e) { throw DBRunError("local_var_undefined "+id, pc); }
+		try                     { return frame().at(id); }
+		catch (out_of_range& e) { throw DBRunError("local_var_undefined "+id, pc); }
 	}
 	int32_t& var_global(const string& id) {
-		try                    { return globals.at(id); }
-		catch (out_of_range e) { throw DBRunError("global_var_undefined "+id, pc); }
+		try                     { return globals.at(id); }
+		catch (out_of_range& e) { throw DBRunError("global_var_undefined "+id, pc); }
 	}
 	StackFrame& frame() {
-		try                    { return fstack.at(fstack.size() - 1); }
-		catch (out_of_range e) { throw DBRunError("framestack_underflow", pc); }
+		try                     { return fstack.at(fstack.size() - 1); }
+		catch (out_of_range& e) { throw DBRunError("framestack_underflow", pc); }
 	}
 	int32_t& mem(int32_t src, int32_t offset) {
-		try                    { return desc(src).at(offset); }
-		catch (out_of_range e) { throw DBRunError("segfault", pc); }
+		try                     { return desc(src).at(offset); }
+		catch (out_of_range& e) { throw DBRunError("segfault", pc); }
 	}
 	vector<int32_t>& desc(int32_t src) {
-		try                    { return heap.at(src); }
-		catch (out_of_range e) { throw DBRunError("segfault", pc); }	
+		try                     { return heap.at(src); }
+		catch (out_of_range& e) { throw DBRunError("segfault", pc); }	
 	}
 	void push(int32_t i) {
 		if (stack_top >= STACK_SIZE-1)  throw DBRunError("stack_overflow", pc);
@@ -199,9 +199,9 @@ struct ASM {
 
 	// --- report & debug ---
 	void showstate() {
-		printf("   heap:    %d \n", heap.size() );
-		printf("   frame:   %d \n", fstack.size() );
-		printf("   stack:   %d \n", stack_top );
+		printf("   heap:    %d \n", (int)heap.size() );
+		printf("   frame:   %d \n", (int)fstack.size() );
+		printf("   stack:   %d \n", (int)stack_top );
 		// return value
 		if (stack_top == 1)
 			printf("   ret > %d \n", stack[stack_top] );
